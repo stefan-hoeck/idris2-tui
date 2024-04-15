@@ -84,3 +84,22 @@ export
 [string] View String where
   size s = MkArea (length s) 1
   paint _ r = showTextAt r.nw
+
+
+export
+record ActionButton action where
+  label : String
+  effect : action
+
+View action (ActionButton action) where
+  size self = MkArea (length self.label + 2) 1
+  paint state r self = do
+    case state of
+      Disabled => sgr [SetStyle Faint]
+      Normal   => sgr [Reset]
+      Focused  => reverseVideo
+    showTextAt r.nw "[\{self.label}]"
+    sgr [Reset]
+
+  handle Enter self = Run self.effect
+  handle _     self = Update self

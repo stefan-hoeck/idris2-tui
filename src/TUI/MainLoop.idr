@@ -106,7 +106,7 @@ runTUI handler render init = do
 ||| This will run until the top-level view gives up its focus.
 covering export
 runView
-  : View state
+  : View action state
   => (handler : action -> state -> IO state)
   -> (init : state)
   -> IO state
