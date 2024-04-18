@@ -188,3 +188,15 @@ namespace Data.Vect.Quantifiers
     -> All p xs
   updateAt FZ     f (x :: xs) = f x :: xs
   updateAt (FS i) f (x :: xs) = x :: updateAt i f xs
+
+
+  ||| get the value at the index
+  public export
+  get
+    :  {k : Nat}
+    -> {xs : Vect k Type}
+    -> (i : Fin k)
+    -> All p xs
+    -> p (index i xs)
+  get FZ     (x :: xs) = x
+  get (FS i) (x :: xs) = get i xs

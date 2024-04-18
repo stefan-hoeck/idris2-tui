@@ -22,7 +22,9 @@ record Field ty where
   constructor F
   label : String
   view : ty
-  {auto impl : View ty}
+  {auto actionT : Type}
+  {auto valueT  : Type}
+  {auto impl : View ty actionT valueT}
 
 ||| Get the area of the field's wrapped view, not including its
 ||| label.
@@ -30,7 +32,7 @@ viewSize : Field ty -> Area
 viewSize self = size @{self.impl} self.view
 
 ||| Update field's wrapped view in response to a key event.
-handleView : Key -> Field ty -> Response (Field ty) action
+handleView : Key -> (f : Field ty) -> Response (Field ty) f.actionT f.valueT
 handleView k f = case handle @{f.impl} k (f.view) of
   Update new  => Update $ { view := new } f
   FocusParent => FocusParent
@@ -104,10 +106,10 @@ export
 handleNth
   : {k : Nat}
   -> {tys : Vect k Type}
-  -> Fin k
+  -> (i : Fin k)
   -> Key
-  -> All Field tys
-  -> Response (All Field tys) action
+  -> (fields: All Field tys)
+  -> Response (All Field tys) (get i fields).actionT (get i fields).valueT
 handleNth FZ key (f :: fs) = case handleView key f of
   Update new  => Update $ new :: fs
   FocusParent => FocusParent
@@ -130,11 +132,27 @@ parameters {k : Nat} {tys : Vect k Type}
   prevChoice : Form tys -> Form tys
   prevChoice = { focused $= predS }
 
+  ||| Type-level helper function
+  public export -- XXX: need to be public?
+  focusedField : (self : Form tys) -> Field (index self.focused tys)
+  focusedField self = get self.focused self.fields
+
+  public export
+  ResponseFor : Form tys -> Type
+  ResponseFor self = Response
+    (Form tys)
+    (focusedField self).actionT
+    (focusedField self).valueT
+
+  public export
+  ActionFor : Form tys -> Type
+  ActionFor self = (focusedField self).actionT
+
   ||| Dispatch event to the selected field.
   |||
   ||| We may need to update our editing state in response.
   export
-  handleEditing : Key -> Form tys -> Response (Form tys) action
+  handleEditing : Key -> (self : Form tys) -> ResponseFor (self)
   handleEditing key self = case handleNth self.focused key self.fields of
     Update fields => Update $ { fields  := fields } self
     FocusParent   => Update $ { editing := False }  self
@@ -146,16 +164,18 @@ parameters {k : Nat} {tys : Vect k Type}
   ||| Up/Down change the form focus, various other keys toggle the
   ||| editing state.
   export
-  handleDefault : Key -> Form tys -> Response (Form tys) action
-  -- handleDefault Up _ impossible
-  handleDefault Up     = Update . prevChoice
-  handleDefault Down   = Update . nextChoice
-  handleDefault Tab    = Update . nextChoice
-  handleDefault Right  = Update . { editing := True }
-  handleDefault Enter  = Update . { editing := True }
-  handleDefault Escape = const FocusParent
-  handleDefault Left   = const FocusParent
-  handleDefault _      = Update . id
+  handleDefault : Key -> (self : Form tys) -> ResponseFor self
+  handleDefault Up     self = Update $ prevChoice self
+  handleDefault Down   self = Update $ nextChoice self
+  handleDefault Tab    self = Update $ nextChoice self
+  handleDefault Right  self = Update $ { editing := True } self
+  handleDefault Enter  self = Update $ { editing := True } self
+  handleDefault Escape _    = FocusParent
+  handleDefault Left   _    = FocusParent
+  handleDefault _      self = Update self
+
+  export
+  handleForm : Key -> (self : Form tys) -> ResponseFor self
 
 ||| The View implementation for form renders each labeled sub-view
 ||| vertically.
@@ -167,7 +187,11 @@ parameters {k : Nat} {tys : Vect k Type}
 ||| Only one sub-view has focus. Tab is used to move focus to the
 ||| next form field.
 export
-{k : Nat} -> {tys : Vect (S k) Type} -> View (Form tys) where
+implementation
+  {k : Nat}
+  -> {tys : Vect (S k) Type}
+  -> View (Form tys) (ActionFor self) (HVect tys)
+where
   size self = self.contentSize + MkArea self.split 1
 
   paint state window self = do
@@ -180,9 +204,9 @@ export
     paintVertical state (shrink window) self
 
   -- dispatch events depending on editing state
-  handle key self = case self.editing of
-    True => handleEditing key self
-    False => handleDefault key self
+  handle key self = handleForm key self
+
+{-
 
 
 ||| Construct a form from a list of field records

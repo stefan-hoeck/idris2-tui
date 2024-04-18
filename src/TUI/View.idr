@@ -19,6 +19,7 @@ import public TUI.Painting
 public export
 data State = Normal | Focused | Disabled
 
+
 ||| A response to an input event.
 |||
 ||| This is returned by the `handle` method, and covers the possible
@@ -35,7 +36,7 @@ data State = Normal | Focused | Disabled
 ||| dispatch actions to the handler you supply with the top-level
 ||| state for context.
 public export
-data Response state action
+data Response state action value
   = Update state
   | FocusParent
   | FocusNext
@@ -48,7 +49,7 @@ data Response state action
 ||| - It can draw itself to the screen
 ||| - It can update its state in response to events.
 public export
-interface View state where
+interface View state action value | state where
   ||| Calculate the "requested" size
   size  : state -> Area
 
@@ -59,20 +60,20 @@ interface View state where
   |||
   ||| The default implementation just shifts focus, depending on the
   ||| key-press.
-  handle : Key -> state -> Response state action
+  handle : Key -> state -> Response state action value
   handle Tab _ = FocusNext
   handle _   _ = FocusParent
 
 ||| Implement `View` for `()` as a no-op
 export
-View () where
+View () _ _ where
   size  _     = MkArea 0 0
   paint _ _ _ = pure ()
 
 ||| Any type implementing `Show` is automatically a (non-interative)
 ||| view.
 export
-Show a => View a where
+Show a => View a _ _ where
   size s = MkArea (length (show s)) 1
   paint _ r s = showTextAt r.nw (show s)
 
@@ -81,17 +82,19 @@ Show a => View a where
 ||| as a view. This alternative, named implementation draws the
 ||| string directly to the screen.
 export
-[string] View String where
+[string] View String _ _ where
   size s = MkArea (length s) 1
   paint _ r = showTextAt r.nw
 
 
-export
-record ActionButton action where
-  label : String
-  effect : action
+{-
 
-View action (ActionButton action) where
+export
+record ActionButton a where
+  label : String
+  dosmth : a
+
+{action : Type} -> View (ActionButton action) where
   size self = MkArea (length self.label + 2) 1
   paint state r self = do
     case state of
@@ -101,5 +104,5 @@ View action (ActionButton action) where
     showTextAt r.nw "[\{self.label}]"
     sgr [Reset]
 
-  handle Enter self = Run self.effect
+  handle Enter self = let act = self.dosmth in Run act
   handle _     self = Update self
