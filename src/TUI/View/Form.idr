@@ -148,11 +148,15 @@ parameters {k : Nat} {tys : Vect k Type}
   ActionFor : Form tys -> Type
   ActionFor self = (focusedField self).actionT
 
+  public export
+  ValueFor : Form tys -> Type
+  ValueFor self = (focusedField self).valueT
+
   ||| Dispatch event to the selected field.
   |||
   ||| We may need to update our editing state in response.
   export
-  handleEditing : Key -> (self : Form tys) -> ResponseFor (self)
+  handleEditing : Key -> (self : Form tys) -> ResponseFor self
   handleEditing key self = case handleNth self.focused key self.fields of
     Update fields => Update $ { fields  := fields } self
     FocusParent   => Update $ { editing := False }  self
@@ -174,8 +178,22 @@ parameters {k : Nat} {tys : Vect k Type}
   handleDefault Left   _    = FocusParent
   handleDefault _      self = Update self
 
+  paintForm : State -> Rect -> Form tys -> IO ()
+  paintForm state window self = do
+    let height = window.size.height `minus` 2
+    vline (window.nw + MkArea 0 1)                height
+    vline (window.nw + MkArea (self.split + 3) 1) height
+    case state of
+      Focused => box window
+      _       => pure ()
+    paintVertical state (shrink window) self
+
   export
   handleForm : Key -> (self : Form tys) -> ResponseFor self
+  handleForm key self = case self.editing of
+    True  => handleEditing key self
+    False => handleDefault key self
+
 
 ||| The View implementation for form renders each labeled sub-view
 ||| vertically.
@@ -186,6 +204,25 @@ parameters {k : Nat} {tys : Vect k Type}
 |||
 ||| Only one sub-view has focus. Tab is used to move focus to the
 ||| next form field.
+|||
+||| XXX: directly instantiating this implementation.
+%hint
+public export
+FormViewImpl
+  :  {k : Nat}
+  -> {tys : Vect (S k) Type}
+  -> {self : Form tys}
+  -> View (Form tys) (ActionFor self) (ValueFor self)
+FormViewImpl {k, tys, self} = MkView {
+  size = \self => self.contentSize + MkArea self.split 1,
+  paint = paintForm,
+  handle = handleForm
+}
+
+
+{-
+
+
 export
 implementation
   {k : Nat}

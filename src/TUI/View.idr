@@ -50,6 +50,7 @@ data Response state action value
 ||| - It can update its state in response to events.
 public export
 interface View state action value | state where
+  constructor MkView
   ||| Calculate the "requested" size
   size  : state -> Area
 
