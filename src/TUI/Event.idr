@@ -79,15 +79,15 @@ decodeEsc _            = Nothing
 export
 interpretEsc
   : Monad m
-  =>  (Key -> state -> m (Maybe state))
+  =>  (Key -> stateT -> m (Either valueT stateT))
   -> Char
-  -> EscState state
-  -> m (Maybe (EscState state))
+  -> EscState stateT
+  -> m (Either valueT (EscState stateT))
 interpretEsc f c (HaveEsc esc s) = case (decodeEsc $ esc :< c) of
-  Just Nothing    => pure $ Just $ HaveEsc (esc :< c) s
+  Just Nothing    => pure $ Right $ HaveEsc (esc :< c) s
   Just (Just key) => pure $ map Default !(f key s)
-  Nothing         => pure $ Just $ Default s
-interpretEsc f '\ESC' (Default s) = pure $ Just $ HaveEsc [<] s
+  Nothing         => pure $ Right $ Default s
+interpretEsc f '\ESC' (Default s) = pure $ Right $ HaveEsc [<] s
 interpretEsc f '\DEL' (Default s) = pure $ map Default !(f Delete    s)
 interpretEsc f '\n'   (Default s) = pure $ map Default !(f Enter     s)
 interpretEsc f '\t'   (Default s) = pure $ map Default !(f Tab       s)

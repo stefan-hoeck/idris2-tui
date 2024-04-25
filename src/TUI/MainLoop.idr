@@ -30,11 +30,12 @@ import Util
 ||| take arbitrary actions in response to user input.
 export covering
 runRaw
-  :  (handler : Char -> state -> IO (Maybe state))
-  -> (render  : state -> IO Builtin.Unit)
-  -> (init    : state)
-  -> IO state
-runRaw handler render init = do
+  :  (handler : Char -> stateT -> IO (Either valueT stateT))
+  -> (render  : stateT -> IO Builtin.Unit)
+  -> (def     : valueT)
+  -> (init    : stateT)
+  -> IO valueT
+runRaw handler render def init = do
   -- default SigINT handler doesn't clean up raw mode, so we need to
   -- handle it explicitly and make sure to clean up.
   Right _ <- collectSignal SigINT
@@ -57,14 +58,14 @@ where
     altScreen False
 
   -- ensure we restore terminal state on IO error
-  err : e -> IO state
+  err : e -> IO valueT
   err _ = do
     cleanup
     die "an unhandled error occured"
 
   -- this is the actual recursive mainloop. The unusual `()` in the
   -- signature allows loop to be partially-applied above.
-  loop : state -> () -> IO state
+  loop : stateT -> () -> IO valueT
   loop s () = do
     -- repaint the screen with the current state
     clearScreen
@@ -77,13 +78,13 @@ where
     -- If we ever need to handle some other signal, like SIGWINCH,
     -- it would be done here.
     Nothing <- handleNextCollectedSignal
-             | Just SigINT => pure init
+             | Just SigINT => pure def
              | Just _      => die "unexpected signal"
 
     -- handle next key press
     case !(handler !getChar s) of
-      Nothing => pure s -- we are done, quit
-      Just s  => loop s () -- go to next iteration.
+      Left  result => pure result -- we are done, quit
+      Right next   => loop next () -- go to next iteration.
 
 ||| Run a raw TUI application, decoding input escape sequences.
 |||
@@ -91,13 +92,13 @@ where
 ||| want to use the view abstraction for rendering screen contents.
 covering export
 runTUI
-  :  (handler : Key -> state -> IO (Maybe state))
-  -> (render  : state -> IO ())
-  -> (init    : state)
-  -> IO state
-runTUI handler render init = do
-  ret <- runRaw (interpretEsc handler) (render . unwrapEsc) (wrapEsc init)
-  pure $ unwrapEsc ret
+  :  (handler : Key -> stateT -> IO (Either valueT stateT))
+  -> (render  : stateT -> IO ())
+  -> (def     : valueT)
+  -> (init    : stateT)
+  -> IO valueT
+runTUI handler render def init =
+  runRaw (interpretEsc handler) (render . unwrapEsc) def (wrapEsc init)
 
 ||| Run a top-level View.
 |||
@@ -106,17 +107,18 @@ runTUI handler render init = do
 ||| This will run until the top-level view gives up its focus.
 covering export
 runView
-  : View action state
-  => (handler : action -> state -> IO state)
-  -> (init : state)
-  -> IO state
-runView handler init = do
-  result <- runTUI wrapView (paint Focused !(screen)) init
+  : View stateT actionT valueT
+  => (handler : actionT -> stateT -> IO stateT)
+  -> (def  : valueT)
+  -> (init : stateT)
+  -> IO valueT
+runView handler def init = do
+  result <- runTUI wrapView (paint Focused !(screen)) def init
   pure result
 where
-  wrapView : Key -> state -> IO (Maybe state)
+  wrapView : Key -> stateT -> IO (Either valueT stateT)
   wrapView k s = case handle k s of
-    Update s    => pure $ Just s
-    FocusParent => pure $ Nothing
-    FocusNext   => pure $ Just s
-    Run action  => pure $ Just !(handler action s)
+    Update s    => pure $ Right s
+    FocusParent => pure $ Left def
+    FocusNext   => pure $ Right s
+    Run action  => pure $ Right !(handler action s)
