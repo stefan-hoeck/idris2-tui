@@ -36,7 +36,7 @@ data State = Normal | Focused | Disabled
 ||| dispatch actions to the handler you supply with the top-level
 ||| state for context.
 public export
-data Response state action value
+data Response state action
   = Update state
   | FocusParent
   | FocusNext
@@ -49,7 +49,7 @@ data Response state action value
 ||| - It can draw itself to the screen
 ||| - It can update its state in response to events.
 public export
-interface View state action value | state where
+interface View state action | state where
   constructor MkView
   ||| Calculate the "requested" size
   size  : state -> Area
@@ -61,20 +61,20 @@ interface View state action value | state where
   |||
   ||| The default implementation just shifts focus, depending on the
   ||| key-press.
-  handle : Key -> state -> Response state action value
+  handle : Key -> state -> Response state action
   handle Tab _ = FocusNext
   handle _   _ = FocusParent
 
 ||| Implement `View` for `()` as a no-op
 export
-View () _ _ where
+View () Void where
   size  _     = MkArea 0 0
   paint _ _ _ = pure ()
 
 ||| Any type implementing `Show` is automatically a (non-interative)
 ||| view.
 export
-Show a => View a _ _ where
+Show a => View a Void where
   size s = MkArea (length (show s)) 1
   paint _ r s = showTextAt r.nw (show s)
 
@@ -83,27 +83,6 @@ Show a => View a _ _ where
 ||| as a view. This alternative, named implementation draws the
 ||| string directly to the screen.
 export
-[string] View String _ _ where
+[string] View String Void where
   size s = MkArea (length s) 1
   paint _ r = showTextAt r.nw
-
-
-{-
-
-export
-record ActionButton a where
-  label : String
-  dosmth : a
-
-{action : Type} -> View (ActionButton action) where
-  size self = MkArea (length self.label + 2) 1
-  paint state r self = do
-    case state of
-      Disabled => sgr [SetStyle Faint]
-      Normal   => sgr [Reset]
-      Focused  => reverseVideo
-    showTextAt r.nw "[\{self.label}]"
-    sgr [Reset]
-
-  handle Enter self = let act = self.dosmth in Run act
-  handle _     self = Update self

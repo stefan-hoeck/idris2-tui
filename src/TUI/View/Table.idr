@@ -24,13 +24,13 @@ data Mode
   | AddRow
 
 public export
-record Cell ty where
+record Cell actionT ty where
   view : ty
-  {auto impl : View ty}
+  {auto impl : View ty actionT}
 
-record Table (tys : Vect k Type) where
+record Table (tys : Vect k Type) actionT where
   headers : Vect k (String, Nat)
-  rows    : Zipper (All Cell tys)
+  rows    : Zipper (All (Cell actionT) tys)
   row     : Nat
   col     : Fin k
   mode    : Table.Mode

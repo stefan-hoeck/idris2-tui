@@ -21,29 +21,31 @@ import Util
 ||| The order of arguments is flipped here to allow for partial
 ||| application in `All`.
 public export
-record Field actionT valueT ty where
+record Field actionT ty where
   constructor F
   label : String
   view : ty
-  {auto impl : View ty actionT valueT}
+  {auto impl : View ty actionT}
 
 
 ||| Type alias for a heterogenous list of fields.
-0 Fields : Vect k Type -> Type -> Type -> Type
-Fields tys a v = All (Field a v) tys
+public export
+0 Fields : Vect k Type -> Type -> Type
+Fields tys a = All (Field a) tys
 
 
 ||| Type alias for the response type we get for a single field.
-0 FieldResponse : Field actionT valueT stateT -> Type
-FieldResponse field = Response (Field actionT valueT stateT) actionT valueT
+public export
+0 FieldResponse : Field actionT stateT -> Type
+FieldResponse field = Response (Field actionT stateT) actionT
 
 ||| Get the area of the field's wrapped view, not including its
 ||| label.
-viewSize : Field _ _ stateT -> Area
+viewSize : Field _ stateT -> Area
 viewSize self = size @{self.impl} self.view
 
 ||| Update field's wrapped view in response to a key event.
-handleView : Key -> (f : Field actionT valueT stateT) -> FieldResponse f
+handleView : Key -> (f : Field actionT stateT) -> FieldResponse f
 handleView k f = case handle @{f.impl} k (f.view) of
   Update new  => Update $ { view := new } f
   FocusParent => FocusParent
@@ -54,9 +56,9 @@ handleView k f = case handle @{f.impl} k (f.view) of
 |||
 ||| One field has focus, and user input is routed to this sub-view.
 export
-record Form (tys : Vect k Type) actionT valueT where
+record Form (tys : Vect k Type) actionT where
   constructor MkForm
-  fields : Fields tys actionT valueT
+  fields : Fields tys actionT
   focused : Fin k
   split : Nat
   editing : Bool
@@ -64,12 +66,12 @@ record Form (tys : Vect k Type) actionT valueT where
 
 parameters {k : Nat} {tys : Vect k Type}
   ||| Get the character width of the longest label in the form.
-  maxLabelWidth : Fields tys _ _ -> Nat
+  maxLabelWidth : Fields tys _ -> Nat
   maxLabelWidth tys = reduceAll max (length . (.label)) 0 tys
 
   ||| Calculate the size the form widgets (not including the labels)
   export
-  sizeViewsVertical : Fields tys _ _ -> Area
+  sizeViewsVertical : Fields tys _ -> Area
   sizeViewsVertical fields = reduceAll hunion (viewSize) (MkArea 0 0) fields
 
 
@@ -80,7 +82,7 @@ paintVertical
   -> {tys : Vect k Type}
   -> State
   -> Rect
-  -> Form tys _ _ -> IO ()
+  -> Form tys _ -> IO ()
 paintVertical state window self = do
   loop 0 window self.fields
   where
@@ -89,7 +91,7 @@ paintVertical state window self = do
       -> {tys : Vect k Type}
       -> Nat
       -> Rect
-      -> Fields tys _ _ -> IO ()
+      -> Fields tys _ -> IO ()
     loop _  _ [] = pure ()
     loop i  window (x :: xs) = do
       let (top, bottom) = vsplit window (viewSize x).height
@@ -121,8 +123,8 @@ handleNth
   -> {tys : Vect k Type}
   -> (i : Fin k)
   -> Key
-  -> (fields: Fields tys actionT valueT)
-  -> Response (Fields tys actionT valueT) actionT valueT
+  -> (fields: Fields tys actionT)
+  -> Response (Fields tys actionT) actionT
 handleNth FZ key (f :: fs) = case handleView key f of
   Update new  => Update $ new :: fs
   FocusParent => FocusParent
@@ -138,32 +140,33 @@ handleNth (FS i) key (f :: fs) = case handleNth i key fs of
 parameters {k : Nat} {tys : Vect k Type}
   ||| Move the form to the next focused value.
   export
-  nextChoice : Form tys actionT valueT -> Form tys actionT valueT
+  nextChoice : Form tys actionT -> Form tys actionT
   nextChoice = { focused $= finS }
 
   ||| Move the form to the previous focused value.
   export
-  prevChoice : Form tys actionT valueT -> Form tys actionT valueT
+  prevChoice : Form tys actionT -> Form tys actionT
   prevChoice = { focused $= predS }
 
-  0 FocusedField : Form tys actionT valueT -> Type
-  FocusedField {actionT, valueT} self =
-    Field actionT valueT (index self.focused tys)
+  export
+  0 FocusedField : Form tys actionT -> Type
+  FocusedField {actionT} self =
+    Field actionT (index self.focused tys)
 
   public export -- XXX: need to be public?
-  focusedField : (self : Form tys actionT valueT) -> FocusedField self
+  focusedField : (self : Form tys actionT) -> FocusedField self
   focusedField self = get self.focused self.fields
 
   public export
-  0 FormResponse : Form tys actionT valueT -> Type
-  FormResponse {actionT, valueT} self =
-    Response (Form tys actionT valueT) actionT valueT
+  0 FormResponse : Form tys actionT -> Type
+  FormResponse {actionT} self =
+    Response (Form tys actionT) actionT
 
   ||| Dispatch event to the selected field.
   |||
   ||| We may need to update our editing state in response.
   export
-  handleEditing : Key -> (self : Form tys actionT valueT) -> FormResponse self
+  handleEditing : Key -> (self : Form tys actionT) -> FormResponse self
   handleEditing key self = case handleNth self.focused key self.fields of
     Update fields => Update $ { fields  := fields } self
     FocusParent   => Update $ { editing := False }  self
@@ -175,7 +178,7 @@ parameters {k : Nat} {tys : Vect k Type}
   ||| Up/Down change the form focus, various other keys toggle the
   ||| editing state.
   export
-  handleDefault : Key -> (self : Form tys actionT valueT) -> FormResponse self
+  handleDefault : Key -> (self : Form tys actionT) -> FormResponse self
   handleDefault Up     self = Update $ prevChoice self
   handleDefault Down   self = Update $ nextChoice self
   handleDefault Tab    self = Update $ nextChoice self
@@ -185,8 +188,7 @@ parameters {k : Nat} {tys : Vect k Type}
   handleDefault Left   _    = FocusParent
   handleDefault _      self = Update self
 
-
-  paintForm : State -> Rect -> Form tys _ _ -> IO ()
+  paintForm : State -> Rect -> Form tys _ -> IO ()
   paintForm state window self = do
     let height = window.size.height `minus` 2
     vline (window.nw + MkArea 0 1)                height
@@ -196,17 +198,16 @@ parameters {k : Nat} {tys : Vect k Type}
       _       => pure ()
     paintVertical state (shrink window) self
 
-  handleForm : Key -> (self : Form tys actionT valueT) -> FormResponse self
+  handleForm : Key -> (self : Form tys actionT) -> FormResponse self
   handleForm key self = case self.editing of
     True  => handleEditing key self
     False => handleDefault key self
-
 
 export
 implementation
   {k : Nat}
   -> {tys : Vect (S k) Type}
-  -> View (Form tys actionT valueT) actionT valueT
+  -> View (Form tys actionT) actionT
 where
   size self = self.contentSize + MkArea self.split 1
 
@@ -228,8 +229,8 @@ public export
 form
   : {k : Nat}
   -> {tys : Vect (S k) Type}
-  -> Fields tys actionT valueT
-  -> Form tys actionT valueT
+  -> Fields tys actionT
+  -> Form tys actionT
 form fields = MkForm {
   fields      = fields,
   focused     = 0,

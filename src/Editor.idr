@@ -218,7 +218,7 @@ insert path = Internal.insert (toInternal path)
 -- covering
 -- nutritionForm : Form [Double, Table String Double]
 
-
+{-
 covering
 foodForm : Form [String, String, String]--, Form [Double, Table String Double]]
 foodForm = form [
@@ -226,11 +226,12 @@ foodForm = form [
   F "brand"     $ fromString "",
   F "barcode"   $ fromString ""
 ]
+-}
 
 
 covering
 test : IO ()
-test = ignore $ runView id foodForm
+-- test = ignore $ runView id foodForm
 
 covering
 export

@@ -44,21 +44,19 @@ import public TUI.View.Table
 %language ElabReflection
 
 
---- tests
-
 ||| A simple menu, useful for testing.
 export
-testMenu : Menu String
-testMenu = menu ["foo", "bar", "baz"]
+testMenu : Menu String ()
+testMenu = menu () ["foo", "bar", "baz"]
 
 ||| A simple form, useful for testing.
 export
-testForm : Form [Menu String, Menu String, TextInput, TextInput]
+testForm : Form [Menu String (), Menu String (), TextInput (), TextInput ()] ()
 testForm = form [
-  F "F1" testMenu,
-  F "Long name" testMenu,
-  F "Text Input" (fromString "test"),
-  F "Test" (fromString "test")
+  F "F1"          testMenu,
+  F "Long name"   testMenu,
+  F "Text Input"  (fromString "test"),
+  F "Test"        (fromString "test")
 ]
 
 ||| Demonstrate all the widgets, as they are implemented.
@@ -67,9 +65,9 @@ testForm = form [
 partial export
 gallery : IO ()
 gallery = do
-  v <- runView id $ form [
-    F "menu" testMenu,
-    F "Nat" $ numeric (the Nat 5) 1,
+  v <- runView (const pure) $ form [
+    F "menu"    testMenu,
+    F "Nat"     $ numeric (the Nat 5) 1,
     F "Integer" $ numeric (the Integer 5)  1,
     F "Double"  $ numeric (the Double 5.0) 0.1,
     F "nested" testForm

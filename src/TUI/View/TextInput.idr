@@ -15,23 +15,24 @@ import Zipper
 
 ||| An Editable String View.
 export
-record TextInput where
+record TextInput actionT where
   constructor TI
-  chars : Zipper Char
+  chars     : Zipper Char
+  onChange  : actionT
 
 ||| Construct a text input from a string.
 export
-fromString : String -> TextInput
-fromString s = TI { chars = fromList $ unpack s }
+fromString : String  -> TextInput ()
+fromString s = TI { chars = fromList $ unpack s, onChange = () }
 
 ||| get the string value from the text input.
 export
-toString : TextInput -> String
+toString : TextInput _ -> String
 toString self = pack $ toList self.chars
 
 ||| Implement View for TextInput
 export
-View TextInput where
+View (TextInput actionT) actionT where
   -- Size is the sum of left and right halves
   size self = MkArea (length self.chars) 1
 

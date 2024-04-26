@@ -131,14 +131,14 @@ realSymbol : Char ; realSymbol = cast 0x211d
 
 ||| This implementation ignores decimals and minus signs.
 export
-View (Numeric Nat) where
+View (Numeric Nat) actionT where
   size self = MkArea (width self.digits) 1
   paint state window self = paintNumeric natSymbol state window self
   handle key = handleCommon key $ (map Digit) . charToDigit
 
 ||| This implementation ignores decimals, but handles the minus sign.
 export
-View (Numeric Integer) where
+View (Numeric Integer) actionT where
   size self = MkArea (width self.digits) 1
   paint state window self = paintNumeric intSymbol state window self
   handle key = handleCommon key special
@@ -149,7 +149,7 @@ View (Numeric Integer) where
 
 ||| This implementation handles both decimal and minus sign.
 export
-View (Numeric Double) where
+View (Numeric Double) actionT where
   size self = MkArea (width self.digits) 1
   paint state window self = paintNumeric realSymbol state window self
   handle key = handleCommon key special

@@ -19,11 +19,12 @@ import Util
 |||
 ||| The choice set is of a single uniform type, unlike with form.
 export
-record Menu a where
+record Menu a actionT where
   constructor MkMenu
-  n       : Nat
-  choices : Vect n a
-  choice  : Fin  n
+  n        : Nat
+  choices  : Vect n a
+  choice   : Fin  n
+  onChange : actionT
 
 -- bind names to some unicode symbols we use.
 upArrow     : String ; upArrow     = "⬆"
@@ -47,8 +48,8 @@ arrowForIndex (FS n) =
 |||
 ||| Up / Down is used to cycle through alternatives.
 ||| TBD: filter options based on text typed.
-export
-View a => View (Menu a) where
+public export
+View (Menu String actionT) actionT where
   size self =
     let width = foldl max 0 $ map (width . size) self.choices
     in MkArea (width + 2) $ height $ size $ index self.choice self.choices
@@ -72,5 +73,10 @@ View a => View (Menu a) where
 
 ||| Construct a menu from a vector of views
 export
-menu : {k : Nat} -> View a => Vect (S k) a -> Menu a
-menu {k} choices = MkMenu (S k) choices (natToFinLt 0)
+menu
+  : {k : Nat}
+  -> View innerT _
+  => (onChange : actionT)
+  -> (choices  : Vect (S k) innerT)
+  -> Menu innerT actionT
+menu {k} onChange choices = MkMenu (S k) choices (natToFinLt 0) onChange
