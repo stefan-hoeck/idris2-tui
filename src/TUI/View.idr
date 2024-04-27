@@ -12,14 +12,6 @@ import public TUI.Event
 import public TUI.Painting
 
 
-||| The drawing state of a view.
-|||
-||| This is used by the `paint` method to provide appropriate
-||| feedback.
-public export
-data State = Normal | Focused | Disabled
-
-
 ||| A response to an input event.
 |||
 ||| This is returned by the `handle` method, and covers the possible
@@ -55,7 +47,7 @@ interface View state action | state where
   size  : state -> Area
 
   ||| Draw the view into the given screen rectangle.
-  paint : View.State -> Rect -> state -> IO ()
+  paint : State -> Rect -> state -> IO ()
 
   ||| Possibly update our state in response to a key press.
   |||
@@ -76,7 +68,7 @@ View () Void where
 export
 Show a => View a Void where
   size s = MkArea (length (show s)) 1
-  paint _ r s = showTextAt r.nw (show s)
+  paint state r s = withState state $ showTextAt r.nw (show s)
 
 ||| In implementing `View` for all `Show` types, we have
 ||| inadvertently made it ambigious what to do when we use a string
@@ -85,4 +77,5 @@ Show a => View a Void where
 export
 [string] View String Void where
   size s = MkArea (length s) 1
-  paint _ r = showTextAt r.nw
+  paint state r self = withState state $ showTextAt r.nw self
+

@@ -40,6 +40,13 @@ import        Data.String
 %default total
 
 
+||| The high-level drawing state for views.
+|||
+||| This is used by the `paint` method to provide appropriate
+||| feedback.
+public export
+data State = Normal | Focused | Disabled
+
 ||| Functions and related to putting text on the screen
 ||| Move the cursor to the given point
 export
@@ -111,6 +118,16 @@ export
 sgr : List SGR -> IO ()
 sgr = putStr . escapeSGR
 
+||| synchronous update Supported by iTerm2 and other fancy terminals
+export
+beginSyncUpdate : IO ()
+beginSyncUpdate = putStr "\ESC[?2026h"
+
+||| synchronous update supported by iTerm2 and other fancy terminals
+export
+endSyncUpdate : IO ()
+endSyncUpdate = putStr "\ESC[?2026l"
+
 ||| Symbolic type for box drawing characters
 public export
 data BoxChar
@@ -165,3 +182,22 @@ box r = do
   boxChar r.ne NE
   boxChar r.sw SW
   boxChar r.se SE
+
+
+||| Default styles for rendering text
+public export
+styleForState : State -> IO ()
+styleForState Normal   = sgr [Reset]
+styleForState Focused  = reverseVideo
+styleForState Disabled = sgr [SetStyle Faint]
+
+
+||| Paint with the appropriate style for the given state.
+|||
+||| Resets the graphics context after painting.
+public export
+withState : State -> (wrapped : IO ()) -> IO ()
+withState state wrapped = do
+  styleForState state
+  wrapped
+  sgr [Reset]

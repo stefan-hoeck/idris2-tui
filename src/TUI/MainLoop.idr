@@ -111,9 +111,15 @@ runView
   -> (init : stateT)
   -> IO stateT
 runView handler init = do
-  result <- runTUI wrapView (paint Focused !(screen)) init
+  result <- runTUI wrapView update init
   pure result
 where
+  update : stateT -> IO ()
+  update state = do
+    beginSyncUpdate
+    paint Focused !(screen) state
+    endSyncUpdate
+
   wrapView : Key -> stateT -> IO (Maybe stateT)
   wrapView k s = case handle k s of
     Update s    => pure $ Just s
