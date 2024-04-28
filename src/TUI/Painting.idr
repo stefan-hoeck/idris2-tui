@@ -126,7 +126,7 @@ beginSyncUpdate = putStr "\ESC[?2026h"
 ||| synchronous update supported by iTerm2 and other fancy terminals
 export
 endSyncUpdate : IO ()
-endSyncUpdate = putStr "\ESC[?2026l"
+endSyncUpdate = putStrLn "\ESC[?2026l"
 
 ||| Symbolic type for box drawing characters
 public export
