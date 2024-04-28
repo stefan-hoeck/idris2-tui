@@ -121,7 +121,7 @@ sgr = putStr . escapeSGR
 ||| synchronous update Supported by iTerm2 and other fancy terminals
 export
 beginSyncUpdate : IO ()
-beginSyncUpdate = putStr "\ESC[?2026h"
+beginSyncUpdate = putStrLn "\ESC[?2026h"
 
 ||| synchronous update supported by iTerm2 and other fancy terminals
 export
