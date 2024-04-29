@@ -7,6 +7,9 @@ module TUI.Event
 
 
 import Derive.Prelude
+import System
+import System.Concurrency
+import Util
 
 
 %language ElabReflection
@@ -92,3 +95,13 @@ interpretEsc f '\DEL' (Default s) = pure $ map Default !(f Delete    s)
 interpretEsc f '\n'   (Default s) = pure $ map Default !(f Enter     s)
 interpretEsc f '\t'   (Default s) = pure $ map Default !(f Tab       s)
 interpretEsc f c      (Default s) = pure $ map Default !(f (Alpha c) s)
+
+export
+mapEsc
+  :  Monad m
+  => (eventT -> stateT -> m (Maybe stateT))
+  -> eventT
+  -> EscState stateT
+  -> m (Maybe (EscState stateT))
+mapEsc handler event (HaveEsc esc s) = pure $ map (HaveEsc esc) !(handler event s)
+mapEsc handler event (Default s)     = pure $ map Default $ !(handler event s)

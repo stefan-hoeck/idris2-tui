@@ -234,106 +234,12 @@ foodForm = form [
 -}
 
 
-data Event
-   = Idle
-   | Stdin Char
-   | Scale Result
-
-
-||| Periodically posts an empty message to the event queue
-|||
-||| This forces the main thread to wake up periodically and refresh the UI.
-covering
-tick
-  : (usec : Int)
-  -> {auto prf : So (usec >= 0)}
-  -> IO () -> IO ()
-tick usec post = do
-  usleep usec
-  post
-  tick usec post
-
-
-||| Read stdin one char at a time, post the event queue.
-covering
-readStdin : (Char -> IO ()) -> IO ()
-readStdin post = do
-  loop
-where
-  loop : IO ()
-  loop = do
-    char <- getChar
-    post char
-    loop
-
-||| XXX: Copy-Pasta from TUI/MainLoop.idr.
-|||
-||| Look for a way to unify these.
-covering
-test : String -> IO ()
-test path = do
-  -- default SigINT handler doesn't clean up raw mode, so we need to
-  -- handle it explicitly and make sure to clean up.
-  Right _ <- collectSignal SigINT
-           | Left err => die "couldn't trap SigINT"
-
-  _ <- enableRawMode
-  altScreen True
-  hideCursor
-  saveCursor
-  chan <- makeChannel
-  _    <- fork $ tick 100000  (channelPut chan Idle)
-  _    <- USBScale.spawn path (channelPut chan . Scale)
-  _    <- fork $ readStdin    (channelPut chan . Stdin)
-  loop chan (USBScale.Empty, "[no chars]")
-  cleanup
-where
-  -- restore terminal state as best we can
-  cleanup : IO ()
-  cleanup = do
-    resetRawMode
-    clearScreen
-    restoreCursor
-    showCursor
-    altScreen False
-
-  err : e -> IO ()
-  err _ = do
-    cleanup
-    die "unhandled error"
-
-  loop: Channel Event -> (USBScale.Result, String) -> IO ()
-  loop chan (scale, ui) = do
-    epochTime <- time
-    beginSyncUpdate
-    clearScreen
-    moveTo origin
-    putStrLn $ show scale
-    putStrLn $ show ui
-    putStrLn $ show epochTime
-    endSyncUpdate
-
-    -- Return immediately if SigINT was received. Nothing, in this
-    -- case, means no signal, so continue normal operation.
-    --
-    -- If we ever need to handle some other signal, like SIGWINCH,
-    -- it would be done here.
-    Nothing <- handleNextCollectedSignal
-             | Just SigINT => pure ()
-             | Just _      => die "unexpected signal"
-
-    case !(channelGet chan) of
-      Idle            => loop chan (scale, ui)
-      Scale nextScale => loop chan (nextScale, ui)
-      Stdin char      => loop chan (scale, singleton char)
-
-
 -- test = ignore $ runView id foodForm
 
 covering
 export
 main : List String -> IO ()
-main ["test", path] = Editor.test path
+main ["test", path] = pure ()
 main _        = die "Invalid subcommand"
 
 
