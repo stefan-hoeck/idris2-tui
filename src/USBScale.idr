@@ -160,9 +160,8 @@ namespace RefactorMe
   data Event
      = Stdin Char
      | Scale (List Bits8)
-     | Idle
+     | Image String
   %runElab derive "Event" [Ord, Eq, Show, FromJSON, ToJSON]
-
 
   ||| This reads JSON packets over stdin, one per line.
   |||
@@ -172,16 +171,16 @@ namespace RefactorMe
   runRaw
     :  (onChar  : Char   -> stateT -> IO (Maybe stateT))
     -> (onScale : Result -> stateT -> IO (Maybe stateT))
+    -> (onImage : String -> stateT -> IO (Maybe stateT))
     -> (render  : stateT -> IO Builtin.Unit)
     -> (init    : stateT)
     -> IO stateT
-  runRaw onChar onScale render init = do
+  runRaw onChar onScale onImage render init = do
     -- input-shim.py already put the terminal in raw mode
     putStrLn ""
     altScreen True
     hideCursor
     saveCursor
-
     ret <- loop init
     cleanup
     pure ret
@@ -210,9 +209,9 @@ namespace RefactorMe
       let next = FromJSON.decode {a = Event} next
       next' <- case next of
         Right (Scale packet) => onScale (decode packet) state
-        Right (Stdin char)   => onChar   char state
-        Right Idle           => pure   $ Just state
-        Left  _              => pure   $ Just state
+        Right (Stdin char)   => onChar char state
+        Right (Image path)   => onImage path state
+        Left  _              => pure (Just state)
       case (the (Maybe stateT) next') of
         Nothing => pure state
         Just next => loop next
@@ -225,13 +224,15 @@ namespace RefactorMe
   runTUI
     :  (onKey   : Key    -> stateT -> IO (Maybe stateT))
     -> (onScale : Result -> stateT -> IO (Maybe stateT))
+    -> (onImage : String -> stateT -> IO (Maybe stateT))
     -> (render  : stateT -> IO Builtin.Unit)
     -> (init    : stateT)
     -> IO stateT
-  runTUI onKey onScale render init = do
+  runTUI onKey onScale onImage render init = do
     ret <- runRaw
       (interpretEsc onKey)
       (mapEsc onScale)
+      (mapEsc onImage)
       (render . unwrapEsc)
       (wrapEsc init)
     pure $ unwrapEsc ret
@@ -246,10 +247,11 @@ namespace RefactorMe
     : View stateT actionT
     => (onAction : actionT -> stateT -> IO stateT)
     -> (onScale  : Result  -> stateT -> IO (Maybe stateT))
+    -> (onImage  : String  -> stateT -> IO (Maybe stateT))
     -> (init : stateT)
     -> IO stateT
-  runView onAction onScale init = do
-    runTUI wrapView onScale (paint Focused !(screen)) init
+  runView onAction onScale onImage init = do
+    runTUI wrapView onScale onImage (paint Focused !(screen)) init
   where
     wrapView : Key -> stateT -> IO (Maybe stateT)
     wrapView k s = case handle k s of
@@ -266,6 +268,7 @@ record SmartScale where
   cur        : Nat
   input      : Maybe $ SnocList Char
   frameNo    : Int
+  image      : String
 
 
 data Action = Tear | Reset
@@ -301,12 +304,14 @@ incFrame self = { frameNo $= (+ 1) } self
 View SmartScale Action where
   size self = MkArea 23 (length self.containers + 4)
   paint state window self = do
-    let (top, bottom) = vsplit window 3
-    withState Normal $ showTextAt top.nw $ "Gross Wt: \{show self.scale}"
+    let (left, right) = hsplit window 23
+    let (top, bottom) = vsplit right 3
+    withState Normal $ showTextAt right.nw $ "Gross Wt: \{show self.scale}"
     withState Normal $ case self.input of
-      Just input => showTextAt (top.nw + MkArea 0 1) $ "Barcode: " ++ kcap input
+      Just input => showTextAt (right.nw + MkArea 0 1) $ "Barcode: " ++ kcap input
       Nothing    => pure ()
-    withState Normal $ showTextAt (top.nw + MkArea 0 2) $ show self.frameNo
+    withState Normal $ showTextAt (right.nw + MkArea 0 2) $ show self.frameNo
+    showTextAt left.nw self.image
     hline top.sw top.size.width
     loop 0 (shrink bottom) self.containers
     where
@@ -361,7 +366,10 @@ onScale : Result -> SmartScale -> IO (Maybe SmartScale)
 onScale result self = do
   pure $ Just $ incFrame $ { scale := result } self
 
-
+onImage : String -> SmartScale -> IO (Maybe SmartScale)
+onImage path self = do
+  (sixel, code) <- assert_total $ run ["chafa", "-s", "20", "upload/decoded.0"]
+  pure $ Just $ incFrame $ { image := sixel } self
 
 
 ||| Entry point for basic scale command.
@@ -371,7 +379,7 @@ main ("--once" :: path :: _) = do
   weight <- getWeight path
   putStrLn $ show weight
 main _ = do
-  _ <- runView onAction onScale (MkSmartScale [] Empty 0 Nothing 0)
+  _ <- runView onAction onScale onImage (MkSmartScale [] Empty 0 Nothing 0 "No image")
   pure ()
 main _ = do
   debug "No device file given"
