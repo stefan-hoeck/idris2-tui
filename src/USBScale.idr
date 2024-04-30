@@ -11,6 +11,7 @@ import Data.Bits
 import Data.Buffer
 import Data.Either
 import Data.Vect
+import JSON.Derive
 import System.Concurrency
 import System
 import System.File
@@ -56,7 +57,7 @@ data Result
   | Weighing
   | Fault String
   | Ok Weight
-%runElab derive "Result" [Show,Eq]
+%runElab derive "Result" [Show,Ord,Eq,FromJSON,ToJSON]
 
 
 ||| Calculate the current weight from the raw binary values
@@ -148,72 +149,43 @@ spawn : String -> (Result -> IO Builtin.Unit) -> IO ThreadID
 spawn path post = fork (run post path)
 
 
-||| XXX: Copy-Pasta from TUI/MainLoop.idr. Refactor to eliminate this duplication.
+||| XXX: This is a giant hack.
 |||
 ||| See in-line comments for details.
 namespace RefactorMe
   %hide Measures.Unit
 
   ||| Sum type which covers all relevant event sources.
+  public export
   data Event
      = Stdin Char
-     | Scale Result
+     | Scale (List Bits8)
      | Idle
+  %runElab derive "Event" [Ord, Eq, Show, FromJSON, ToJSON]
 
-  covering
-  tick : Fifo Event -> IO ()
-  tick chan = do
-    usleep 250000
-    put chan Idle
-    tick chan
 
-  ||| The main thing that is different is that this code has to handle
-  ||| events from either the keyboard or the scale. There is no
-  ||| non-blocking form of either API, so we must use threads and
-  ||| channels to interleave these event streams.
+  ||| This reads JSON packets over stdin, one per line.
   |||
-  ||| Consequently, it takes two handlers. I need to think of a better
-  ||| abstraction over event sources.
+  ||| Run with python shim in this directory.
   |||
-  ||| XXX: contribute some non-blocking variants of channelGet and
-  ||| getChar to the standard library.
   covering
   runRaw
-    :  (device : String)
-    -> (onChar  : Char   -> stateT -> IO (Maybe stateT))
+    :  (onChar  : Char   -> stateT -> IO (Maybe stateT))
     -> (onScale : Result -> stateT -> IO (Maybe stateT))
     -> (render  : stateT -> IO Builtin.Unit)
     -> (init    : stateT)
     -> IO stateT
-  runRaw device onChar onScale render init = do
-    -- XXX: early on, I seemed to have better luck with
-    -- `enableRawMode`, but this might be superstitious. investigate.
-    _ <- enableRawMode
+  runRaw onChar onScale render init = do
+    -- input-shim.py already put the terminal in raw mode
+    putStrLn ""
     altScreen True
     hideCursor
     saveCursor
-    chan <- makeFifo
-    _  <- USBScale.spawn device (put chan . Scale)
-    -- XXX: superstitiously, I want to start reading from stdin only
-    -- *after* it has been placed into raw mode. the thread may or may
-    -- not inherit rawMode. investigate.
-    _ <- fork $ readStdin    (put chan . Stdin)
 
-    ret <- loop 0 chan init
+    ret <- loop init
     cleanup
     pure ret
   where
-    ||| Read stdin one char at a time, post to the event queue.
-    |||
-    ||| Refactoring opportunity: do the escape sequence decoding on
-    ||| this thread.
-    covering
-    readStdin : (Char -> IO Builtin.Unit) -> IO Builtin.Unit
-    readStdin post = do
-      char <- getChar
-      post char
-      readStdin post
-
     ||| restore terminal state as best we can
     cleanup : IO Builtin.Unit
     cleanup = do
@@ -221,29 +193,29 @@ namespace RefactorMe
       restoreCursor
       showCursor
       altScreen False
-      resetRawMode
 
     ||| The actual main loop
     |||
     ||| XXX: `i` is the loop count, which I'm using for debugging at
     ||| the moment.
-    loop: Int -> Fifo Event -> stateT -> IO stateT
-    loop i chan state = do
+    loop: stateT -> IO stateT
+    loop state = do
       beginSyncUpdate
       clearScreen
       moveTo origin
       render state
       endSyncUpdate
 
-      next <- case !(get' chan) of
-        Just (Scale nextScale) => onScale nextScale state
-        Just (Stdin char)      => onChar  char      state
-        Just Idle              => pure $ Just state
-        Nothing                => pure $ Just state
-
-      case next of
+      next <- getLine
+      let next = FromJSON.decode {a = Event} next
+      next' <- case next of
+        Right (Scale packet) => onScale (decode packet) state
+        Right (Stdin char)   => onChar   char state
+        Right Idle           => pure   $ Just state
+        Left  _              => pure   $ Just state
+      case (the (Maybe stateT) next') of
         Nothing => pure state
-        Just next => loop (i + 1) chan next
+        Just next => loop next
 
   ||| Run a raw TUI application, decoding input escape sequences.
   |||
@@ -251,21 +223,18 @@ namespace RefactorMe
   ||| want to use the view abstraction for rendering screen contents.
   covering export
   runTUI
-    :  (device  : String)
-    -> (onKey   : Key    -> stateT -> IO (Maybe stateT))
+    :  (onKey   : Key    -> stateT -> IO (Maybe stateT))
     -> (onScale : Result -> stateT -> IO (Maybe stateT))
     -> (render  : stateT -> IO Builtin.Unit)
     -> (init    : stateT)
     -> IO stateT
-  runTUI device onKey onScale render init = do
+  runTUI onKey onScale render init = do
     ret <- runRaw
-      device
       (interpretEsc onKey)
       (mapEsc onScale)
       (render . unwrapEsc)
       (wrapEsc init)
     pure $ unwrapEsc ret
-
 
   ||| Run a top-level View.
   |||
@@ -275,13 +244,12 @@ namespace RefactorMe
   covering export
   runView
     : View stateT actionT
-    => (device   : String)
-    -> (onAction : actionT -> stateT -> IO stateT)
+    => (onAction : actionT -> stateT -> IO stateT)
     -> (onScale  : Result  -> stateT -> IO (Maybe stateT))
     -> (init : stateT)
     -> IO stateT
-  runView device onAction onScale init = do
-    runTUI device wrapView onScale (paint Focused !(screen)) init
+  runView onAction onScale init = do
+    runTUI wrapView onScale (paint Focused !(screen)) init
   where
     wrapView : Key -> stateT -> IO (Maybe stateT)
     wrapView k s = case handle k s of
@@ -305,9 +273,16 @@ data Action = Tear | Reset
 
 handleAlpha : Char -> SmartScale -> SmartScale
 handleAlpha '*' self = { input := Just [<] } self
-handleAlpha '#' self = case self.input of
-  Just input => selectOrAdd input self
-  Nothing => { input := Nothing } self
+handleAlpha c self = case self.input of
+  Just i  => case isDigit c of
+    True => { input := Just $ i :< c } self
+    False => self
+  Nothing => self
+
+handleEnter : SmartScale -> Response SmartScale Action
+handleEnter self = case self.input of
+  Just input => Update $ selectOrAdd input self
+  Nothing    => Run Tear
   where
     matchBarcode : Barcode -> (Barcode, Weight) -> Bool
     matchBarcode needle (barcode, _) = needle == barcode
@@ -315,14 +290,10 @@ handleAlpha '#' self = case self.input of
     selectOrAdd : SnocList Char -> SmartScale -> SmartScale
     selectOrAdd input self = case fromDigits $ kcap input of
       Just bc => case findIndex (matchBarcode bc) self.containers of
-        Just i  => { cur := finToNat i } self
-        Nothing => { cur := 0, containers $= ((bc, 0.g) ::)} self
+        Just i  => { cur := finToNat i, input := Nothing } self
+        Nothing => { cur := 0, containers $= ((bc, 0.g) ::), input := Nothing} self
       Nothing => self
-handleAlpha c self = case self.input of
-  Just i  => case isDigit c of
-    True => { input := Just $ i :< c } self
-    False => self
-  Nothing => self
+
 
 incFrame : SmartScale -> SmartScale
 incFrame self = { frameNo $= (+ 1) } self
@@ -353,13 +324,14 @@ View SmartScale Action where
         paint state right (snd x)
         loop (S i) bottom xs
 
+  handle (Alpha 'q') _  = FocusParent
   handle (Alpha c) self = Update $ incFrame $ handleAlpha c self
   handle Left self      = Update $ incFrame self
   handle Right self     = Update $ incFrame self
   handle Up self        = Update $ incFrame $ { cur $= pred } self
   handle Down self      = Update $ incFrame $ { cur $= S } self
   handle Delete self    = Run Reset
-  handle Enter self     = Run Tear
+  handle Enter self     = handleEnter self
   handle Tab self       = Update $ incFrame $ { cur $= S } self
   handle Escape self    = FocusParent
 
@@ -389,14 +361,17 @@ onScale : Result -> SmartScale -> IO (Maybe SmartScale)
 onScale result self = do
   pure $ Just $ incFrame $ { scale := result } self
 
+
+
+
 ||| Entry point for basic scale command.
 export partial
 main : List String -> IO Builtin.Unit
 main ("--once" :: path :: _) = do
   weight <- getWeight path
   putStrLn $ show weight
-main (device :: _) = do
-  _ <- runView device onAction onScale (MkSmartScale [] Empty 0 Nothing 0)
+main _ = do
+  _ <- runView onAction onScale (MkSmartScale [] Empty 0 Nothing 0)
   pure ()
 main _ = do
   debug "No device file given"
