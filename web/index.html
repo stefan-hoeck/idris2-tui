@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Image Uploader</title>
+  </head>
+  <body>
+    <div class="camera">
+      <video id="video">Video stream not available.</video>
+      <button id="capture">Take Photo</button>
+    </div>
+    <canvas id="canvas"></canvas>
+    <div class="output">
+      <img id="photo" alt="Take a photo." />
+    </div>
+    <script>
+      async function startup() {
+	const video = document.getElementById('video');
+	const canvas = document.getElementById('canvas');
+	const photo = document.getElementById('photo');
+	const capture = document.getElementById('capture');
+	let   streaming = false;
+
+	const stream = await navigator
+	    .mediaDevices
+	    .getUserMedia({video : true, audio: false});
+	video.srcObject = stream;
+	video.play();
+      }
+
+      function upload(data) {
+	let res = fetch("image", {body : data, method: "PUT"});
+      }
+      let promise = startup();
+    </script>
+  </body>
+</html>
