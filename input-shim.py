@@ -16,26 +16,36 @@ XXX: supress the broken pipe error if user quits from idris
 import os
 import http.server
 import json
+import multipart
 import queue
 import sys
 import termios
 import threading
 import tty
 
+
+def decode_multipart(stream, headers, path):
+    length = int(headers.get('content-length'))
+    boundary = headers.get('content-type').split('; boundary=')[1]
+    parser = multipart.MultipartParser(stream, boundary, length)
+    for (i, part) in enumerate(parser):
+        part.save_as(f"{path}/decoded.{i}")
+
 # handles uploading images via a web interface
 #
 # point your phone at your hostname:8000
-def server(port, q):
+def server(address, port, q):
     class ImageHandler(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *args, **kwargs):
             super().__init__(directory="web", *args, **kwargs)
 
-        def do_PUT(self):
-            print("test")
-            data = self.rfile.read(int(self.headers.get('content-length')))
-            q.put({"tag": "Image", "contents": [self.path, list(data)]})
+        def do_POST(self):
+            decode_multipart(self.rfile, self.headers, "upload")
             self.send_response(200, "Ok")
-    s = http.server.HTTPServer(('', 8000), ImageHandler)
+            self.end_headers()
+            q.put({"tag": "Image", "contents": ["upload/decoded.0"] })
+
+    s = http.server.HTTPServer((address, 8000), ImageHandler)
     s.serve_forever()
 
 def readScale(path, q):
@@ -54,7 +64,7 @@ try:
     q = queue.Queue()
     serverThread = threading.Thread(
         target=server,
-        args=(8000, q),
+        args=('', 8000, q),
         daemon=True
     )
     scaleThread = threading.Thread(
