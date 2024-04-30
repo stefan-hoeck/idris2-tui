@@ -16,6 +16,7 @@ import System
 import System.File
 import System.Signal
 import TUI
+import TUI.Event
 import TUI.View
 import TUI.Painting
 import Util
@@ -160,10 +161,10 @@ namespace RefactorMe
      | Idle
 
   covering
-  tick : Channel Event -> IO ()
+  tick : Fifo Event -> IO ()
   tick chan = do
-    usleep 10000
-    channelPut chan Idle
+    usleep 250000
+    put chan Idle
     tick chan
 
   ||| The main thing that is different is that this code has to handle
@@ -191,12 +192,12 @@ namespace RefactorMe
     altScreen True
     hideCursor
     saveCursor
-    chan <- makeChannel
-    _  <- USBScale.spawn device (channelPut chan . Scale)
+    chan <- makeFifo
+    _  <- USBScale.spawn device (put chan . Scale)
     -- XXX: superstitiously, I want to start reading from stdin only
     -- *after* it has been placed into raw mode. the thread may or may
     -- not inherit rawMode. investigate.
-    _ <- fork $ readStdin    (channelPut chan . Stdin)
+    _ <- fork $ readStdin    (put chan . Stdin)
 
     ret <- loop 0 chan init
     cleanup
@@ -226,7 +227,7 @@ namespace RefactorMe
     |||
     ||| XXX: `i` is the loop count, which I'm using for debugging at
     ||| the moment.
-    loop: Int -> Channel Event -> stateT -> IO stateT
+    loop: Int -> Fifo Event -> stateT -> IO stateT
     loop i chan state = do
       beginSyncUpdate
       clearScreen
@@ -234,10 +235,11 @@ namespace RefactorMe
       render state
       endSyncUpdate
 
-      next <- case !(channelGet chan) of
-        Scale nextScale => onScale nextScale state
-        Stdin char      => onChar  char      state
-        Idle            => pure $ Just state
+      next <- case !(get' chan) of
+        Just (Scale nextScale) => onScale nextScale state
+        Just (Stdin char)      => onChar  char      state
+        Just Idle              => pure $ Just state
+        Nothing                => pure $ Just state
 
       case next of
         Nothing => pure state

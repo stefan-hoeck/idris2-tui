@@ -10,10 +10,80 @@ import Derive.Prelude
 import System
 import System.Concurrency
 import Util
+import Data.IORef
 
 
 %language ElabReflection
 %default total
+
+
+||| This is a pure Queue data-structure more or less copied from
+||| idris2-containers
+|||
+||| It's used internally to store the FIFO data.
+record Queue valueT where
+  constructor Q
+  front : List valueT
+  back  : SnocList valueT
+
+empty : Queue valueT
+empty = Q [] [<]
+
+enqueue : valueT -> Queue valueT -> Queue valueT
+enqueue v = { back $= (:< v) }
+
+dequeue : Queue valueT -> Maybe (valueT, Queue valueT)
+dequeue self = case self.front of
+  [] => case self.back of
+    [<] => Nothing
+    xs :< x  => Just $ (x, Q (toList xs) [<])
+  x :: xs => Just (x, { front := xs } self)
+
+
+||| Like System.Concurrency.Channel, but:
+|||
+||| -- has non-blocking API
+||| -- hold values until dequeued.
+export
+record Fifo valueT where
+  constructor MkFifo
+  mutex    : Mutex
+  queue    : IORef (Queue valueT)
+
+export
+makeFifo : IO (Fifo valueT)
+makeFifo = do
+  mutex  <- makeMutex
+  queue  <- newIORef empty
+  pure $ MkFifo mutex queue
+
+||| Put a value into the fifo.
+|||
+||| This should not block for long, as the queue is unbounded. It may
+||| exhaust memory if the queue isn't being drained.
+export
+put : Fifo valueT -> valueT -> IO ()
+put self value = do
+  mutexAcquire self.mutex
+  modifyIORef self.queue (enqueue value)
+  mutexRelease self.mutex
+
+||| Get the next item from the queue without blocking.
+|||
+||| If the queue is empty, immediately returns Nothing.
+export covering
+get' : Fifo valueT -> IO (Maybe valueT)
+get' self = do
+  mutexAcquire self.mutex
+  q <- readIORef self.queue
+  case dequeue q of
+    Nothing => do
+      mutexRelease self.mutex
+      pure Nothing
+    Just (a, q) => do
+      writeIORef self.queue q
+      mutexRelease self.mutex
+      pure $ Just a
 
 
 ||| Decoder state-machine type.
