@@ -6,11 +6,12 @@
 module TUI.Event
 
 
+import Data.IORef
 import Derive.Prelude
+import JSON.Derive
 import System
 import System.Concurrency
 import Util
-import Data.IORef
 
 
 %language ElabReflection
@@ -106,7 +107,7 @@ data Key
   | Enter
   | Tab
   | Escape
-%runElab derive "Key" [Ord, Eq, Show]
+%runElab derive "Key" [Ord, Eq, Show, FromJSON]
 
 ||| Track escape sequences for the inner state.
 export

@@ -149,118 +149,6 @@ spawn : String -> (Result -> IO Builtin.Unit) -> IO ThreadID
 spawn path post = fork (run post path)
 
 
-||| XXX: This is a giant hack.
-|||
-||| See in-line comments for details.
-namespace RefactorMe
-  %hide Measures.Unit
-
-  ||| Sum type which covers all relevant event sources.
-  public export
-  data Event
-     = Stdin Char
-     | Scale (List Bits8)
-     | Image String
-  %runElab derive "Event" [Ord, Eq, Show, FromJSON, ToJSON]
-
-  ||| This reads JSON packets over stdin, one per line.
-  |||
-  ||| Run with python shim in this directory.
-  |||
-  covering
-  runRaw
-    :  (onChar  : Char   -> stateT -> IO (Maybe stateT))
-    -> (onScale : Result -> stateT -> IO (Maybe stateT))
-    -> (onImage : String -> stateT -> IO (Maybe stateT))
-    -> (render  : stateT -> IO Builtin.Unit)
-    -> (init    : stateT)
-    -> IO stateT
-  runRaw onChar onScale onImage render init = do
-    -- input-shim.py already put the terminal in raw mode
-    putStrLn ""
-    altScreen True
-    hideCursor
-    saveCursor
-    ret <- loop init
-    cleanup
-    pure ret
-  where
-    ||| restore terminal state as best we can
-    cleanup : IO Builtin.Unit
-    cleanup = do
-      clearScreen
-      restoreCursor
-      showCursor
-      altScreen False
-
-    ||| The actual main loop
-    |||
-    ||| XXX: `i` is the loop count, which I'm using for debugging at
-    ||| the moment.
-    loop: stateT -> IO stateT
-    loop state = do
-      beginSyncUpdate
-      clearScreen
-      moveTo origin
-      render state
-      endSyncUpdate
-
-      next <- getLine
-      let next = FromJSON.decode {a = Event} next
-      next' <- case next of
-        Right (Scale packet) => onScale (decode packet) state
-        Right (Stdin char)   => onChar char state
-        Right (Image path)   => onImage path state
-        Left  _              => pure (Just state)
-      case (the (Maybe stateT) next') of
-        Nothing => pure state
-        Just next => loop next
-
-  ||| Run a raw TUI application, decoding input escape sequences.
-  |||
-  ||| Use this function if you want escape sequence decoding, but do not
-  ||| want to use the view abstraction for rendering screen contents.
-  covering export
-  runTUI
-    :  (onKey   : Key    -> stateT -> IO (Maybe stateT))
-    -> (onScale : Result -> stateT -> IO (Maybe stateT))
-    -> (onImage : String -> stateT -> IO (Maybe stateT))
-    -> (render  : stateT -> IO Builtin.Unit)
-    -> (init    : stateT)
-    -> IO stateT
-  runTUI onKey onScale onImage render init = do
-    ret <- runRaw
-      (interpretEsc onKey)
-      (mapEsc onScale)
-      (mapEsc onImage)
-      (render . unwrapEsc)
-      (wrapEsc init)
-    pure $ unwrapEsc ret
-
-  ||| Run a top-level View.
-  |||
-  ||| Use this entry point if you want to use the `View` abstraction.
-  |||
-  ||| This will run until the top-level view gives up focus.
-  covering export
-  runView
-    : View stateT actionT
-    => (onAction : actionT -> stateT -> IO stateT)
-    -> (onScale  : Result  -> stateT -> IO (Maybe stateT))
-    -> (onImage  : String  -> stateT -> IO (Maybe stateT))
-    -> (init : stateT)
-    -> IO stateT
-  runView onAction onScale onImage init = do
-    runTUI wrapView onScale onImage (paint Focused !(screen)) init
-  where
-    wrapView : Key -> stateT -> IO (Maybe stateT)
-    wrapView k s = case handle k s of
-      Update s    => pure $ Just s
-      FocusParent => pure Nothing
-      FocusNext   => pure $ Just s
-      Run action  => pure $ Just $ !(onAction action s)
-
-
 record SmartScale where
   constructor MkSmartScale
   containers : List (Barcode, Weight)
@@ -301,44 +189,47 @@ handleEnter self = case self.input of
 incFrame : SmartScale -> SmartScale
 incFrame self = { frameNo $= (+ 1) } self
 
-View SmartScale Action where
-  size self = MkArea 23 (length self.containers + 4)
-  paint state window self = do
-    let (left, right) = hsplit window 23
-    let (top, bottom) = vsplit right 3
-    withState Normal $ showTextAt right.nw $ "Gross Wt: \{show self.scale}"
-    withState Normal $ case self.input of
-      Just input => showTextAt (right.nw + MkArea 0 1) $ "Barcode: " ++ kcap input
-      Nothing    => pure ()
-    withState Normal $ showTextAt (right.nw + MkArea 0 2) $ show self.frameNo
-    showTextAt left.nw self.image
-    hline top.sw top.size.width
-    loop 0 (shrink bottom) self.containers
-    where
-      focusedState : State -> Nat -> State
-      focusedState Focused i = if (i == self.cur) then Focused else Normal
-      focusedState state   _ = state
+namespace Detail
+  %hide Measures.Unit
+  export
+  View SmartScale Action where
+    size self = MkArea 23 (length self.containers + 4)
+    paint state window self = do
+      let (left, right) = hsplit window 23
+      let (top, bottom) = vsplit right 3
+      withState Normal $ showTextAt right.nw $ "Gross Wt: \{show self.scale}"
+      withState Normal $ case self.input of
+        Just input => showTextAt (right.nw + MkArea 0 1) $ "Barcode: " ++ kcap input
+        Nothing    => pure ()
+      withState Normal $ showTextAt (right.nw + MkArea 0 2) $ show self.frameNo
+      showTextAt left.nw self.image
+      hline top.sw top.size.width
+      loop 0 (shrink bottom) self.containers
+      where
+        focusedState : State -> Nat -> State
+        focusedState Focused i = if (i == self.cur) then Focused else Normal
+        focusedState state   _ = state
 
-      loop : Nat -> Rect -> List (Barcode, Weight) -> IO ()
-      loop _ _      []        = pure ()
-      loop i window (x :: xs) = do
-        let (top, bottom) = vsplit window 1
-        let (left, right) = hsplit top 24
-        let state = focusedState state i
-        withState state $ showTextAt left.nw $ show (fst x)
-        paint state right (snd x)
-        loop (S i) bottom xs
+        loop : Nat -> Rect -> List (Barcode, Weight) -> IO ()
+        loop _ _      []        = pure ()
+        loop i window (x :: xs) = do
+          let (top, bottom) = vsplit window 1
+          let (left, right) = hsplit top 24
+          let state = focusedState state i
+          withState state $ showTextAt left.nw $ show (fst x)
+          paint state right (snd x)
+          loop (S i) bottom xs
 
-  handle (Alpha 'q') _  = FocusParent
-  handle (Alpha c) self = Update $ incFrame $ handleAlpha c self
-  handle Left self      = Update $ incFrame self
-  handle Right self     = Update $ incFrame self
-  handle Up self        = Update $ incFrame $ { cur $= pred } self
-  handle Down self      = Update $ incFrame $ { cur $= S } self
-  handle Delete self    = Run Reset
-  handle Enter self     = handleEnter self
-  handle Tab self       = Update $ incFrame $ { cur $= S } self
-  handle Escape self    = FocusParent
+    handle (Alpha 'q') _  = FocusParent
+    handle (Alpha c) self = Update $ incFrame $ handleAlpha c self
+    handle Left self      = Update $ incFrame self
+    handle Right self     = Update $ incFrame self
+    handle Up self        = Update $ incFrame $ { cur $= pred } self
+    handle Down self      = Update $ incFrame $ { cur $= S } self
+    handle Delete self    = Run Reset
+    handle Enter self     = handleEnter self
+    handle Tab self       = Update $ incFrame $ { cur $= S } self
+    handle Escape self    = FocusParent
 
 onAction : Action -> SmartScale -> IO SmartScale
 onAction Tear self = case self.scale of
@@ -379,8 +270,11 @@ main ("--once" :: path :: _) = do
   weight <- getWeight path
   putStrLn $ show weight
 main _ = do
-  _ <- runView onAction onScale onImage (MkSmartScale [] Empty 0 Nothing 0 "No image")
-  pure ()
-main _ = do
-  debug "No device file given"
+  _ <- runView
+    onAction
+    [
+     On "Scale" onScale,
+     On "Image" onImage
+    ]
+    (MkSmartScale [] Empty 0 Nothing 0 "No image")
   pure ()
