@@ -165,21 +165,26 @@ namespace InputShim
     {auto impl  : FromJSON eventT}
     handler     : eventT -> stateT -> IO (Maybe stateT)
 
-
-  export
-  test : String
-  test = "{\"tag\": \"Scale\", \"contents\": [[3, 2, 11, 255, 0, 0]]}"
-
+  ||| Decode the top-level JSON record.
+  |||
+  ||| This is somewhat manual, since there's no outer Sum type to
+  ||| decode into. We directly decode the first element of `contents`,
+  ||| which is where our event type actually lives.
+  |||
+  ||| XXX: Probably the JSON package has this functionality, but I
+  ||| didn't want to go down that rabbit hole, so I wrote it manually.
   export
   match : FromJSON a => String -> JSON -> Either String a
-  match expected (JObject [("tag", JString got), ("contents", (JArray [rest]))]) =
+  match expected (JObject [
+    ("tag", JString got),
+    ("contents", (JArray [rest]))
+  ]) =
     if expected == got
       then case fromJSON rest of
         Left err => Left $ show err
         Right v  => Right v
       else Left "Incorrect tag"
   match _ _ = Left "Wrong shape"
-
 
   ||| Try each handler in succession until one decodes an event.
   |||
@@ -231,26 +236,7 @@ namespace InputShim
       showCursor
       altScreen False
 
-    ||| Try each handler in succession until one decodes an event.
-    |||
-    ||| Returns the original handler, with the event partially applied
-    ||| (which avoids having to mention it in the return type).
-    decodeNext
-      : String
-      -> List (EventSource stateT)
-      -> Either String (stateT -> IO (Maybe stateT))
-    decodeNext e []        = Left "unhandled event: \{e}"
-    decodeNext s (x :: xs) = do
-      case parseJSON Virtual s of
-        Left  err => Left $ show err
-        Right parsed => case match @{x.impl} x.tag parsed of
-          Left  err => Left err
-          Right evt => Right (x.handler evt)
-
     ||| The actual main loop
-    |||
-    ||| XXX: `i` is the loop count, which I'm using for debugging at
-    ||| the moment.
     loop: stateT -> IO stateT
     loop state = do
       beginSyncUpdate
@@ -263,7 +249,7 @@ namespace InputShim
       next' <- case decodeNext next sources of
         Right handler => handler state
         Left  err     => do
-          Right _ <- fPutStrLn stderr $ show err | Left _ => pure (Just state)
+          ignore $ fPutStrLn stderr $ show err
           pure (Just state)
       case (the (Maybe stateT) next') of
         Nothing => pure state
@@ -308,5 +294,3 @@ namespace InputShim
       FocusParent => pure Nothing
       FocusNext   => pure $ Just s
       Run action  => pure $ Just $ !(onAction action s)
-
-

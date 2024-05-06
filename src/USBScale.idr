@@ -98,7 +98,6 @@ decode [report, status, unit, exp, lsb, msb] =
     else Fault "Error Reading Scale!"
 decode _ = Fault"Error, invalid packet"
 
-
 ||| Synchronously read from the scale
 |||
 ||| We can't necessarily trust the first weight we get, so we wait for
@@ -146,7 +145,6 @@ run post path = do
     onError : FileError -> IO String
     onError err = pure $ show err
 
-
 ||| Spawn the scale reading thread
 |||
 ||| The function parameter should post the USBScale.result to the main
@@ -156,119 +154,220 @@ spawn : String -> (Result -> IO Builtin.Unit) -> IO ThreadID
 spawn path post = fork (run post path)
 
 
-record SmartScale where
-  constructor MkSmartScale
-  containers : List (Barcode, Weight)
-  scale      : Result
-  cur        : Nat
-  input      : Maybe $ SnocList Char
-  frameNo    : Int
-  image      : String
-
-
-data Action = Tear | Reset
-
-
-handleAlpha : Char -> SmartScale -> SmartScale
-handleAlpha '*' self = { input := Just [<] } self
-handleAlpha c self = case self.input of
-  Just i  => case isDigit c of
-    True => { input := Just $ i :< c } self
-    False => self
-  Nothing => self
-
-handleEnter : SmartScale -> Response SmartScale Action
-handleEnter self = case self.input of
-  Just input => Update $ selectOrAdd input self
-  Nothing    => Run Tear
-  where
-    matchBarcode : Barcode -> (Barcode, Weight) -> Bool
-    matchBarcode needle (barcode, _) = needle == barcode
-
-    selectOrAdd : SnocList Char -> SmartScale -> SmartScale
-    selectOrAdd input self = case fromDigits $ kcap input of
-      Just bc => case findIndex (matchBarcode bc) self.containers of
-        Just i  => { cur := finToNat i, input := Nothing } self
-        Nothing => { cur := 0, containers $= ((bc, 0.g) ::), input := Nothing} self
-      Nothing => self
-
-
-incFrame : SmartScale -> SmartScale
-incFrame self = { frameNo $= (+ 1) } self
-
-namespace Detail
+||| All the stuff for the fullscreen terminal front-end lives here
+|||
+||| XXX: make this prettier
+namespace TUI
   %hide Measures.Unit
+  %hide Prelude.(-)
+
+  ||| Holds the information about a container
+  |||
+  ||| XXX: This should be merged to use the Container module, but will
+  ||| probably need some refactoring first. The container should join
+  ||| on any available inventory DB record if its available.
+  export
+  record Container where
+    constructor MkContainer
+    barcode : Barcode
+    tear    : Weight
+    gross   : Weight
+
+  ||| Make an empty container with the given barcode.
+  export
+  empty : Barcode -> Container
+  empty barcode = MkContainer barcode 0.g 0.g
+
+  ||| Project out the net weight from Container
+  (.net) : Container -> Weight
+  (.net) self = self.gross - self.tear
+
+  ||| Updates tear weight on the container.
+  tear : Weight -> Container -> Container
+  tear w = { tear := w }
+
+  ||| Updates the gross weight on the container to w.
+  store : Weight -> Container -> Container
+  store w = { gross := w }
+
+  ||| Reset both weights to zero.
+  reset : Container -> Container
+  reset = { tear := 0.g, gross := 0.g }
+
+  ||| True if the container has the given barcode.
+  hasBarcode : Barcode -> Container -> Bool
+  hasBarcode bc self = bc == self.barcode
+
+  View Container () where
+    -- size here is just a guess, but it should be a fixed grid
+    -- up to 13 chars for the barcode, plus padding
+    -- 10 digits each for gross, tear, and net
+    size _ = MkArea (14 + 10 + 10 + 10) 1
+    paint state window self = do
+      let (top,     bottom) = vsplit window 1
+      let (barcode, top   ) = hsplit top 13
+      let (tear,    top   ) = hsplit top 10
+      let (gross,   net   ) = hsplit top 10
+      paint state barcode self.barcode
+      paint state tear    self.tear
+      paint state gross   self.tear
+      paint state net     self.net
+
+  ||| These actions correspond to the container methods above
+  ||| But are handled in the parent view
+  data Action = Tear | Store | Reset | Select
+  %runElab derive "Action" [Show]
+
+  ||| An MVP of my "Smart Scale" concept
+  |||
+  ||| Basically: we have a list of containers and a digital scale.
+  |||
+  ||| We can tear each container independently.
+  |||
+  ||| We can store initial and final weights, so at a glance you can
+  ||| see the how much you have added or removed from each container.
+  |||
+  ||| Explanation of User Interaction
+  |||
+  ||| - We start off in default mode, with no containers and no selection.
+  ||| - The user adds a container by entering its barcode
+  ||| - The barcode scanner works like a keyboard, so we can't
+  |||   distinguish it from key presses.
+  |||   - It's configured to prefix the barcode with a `*` symbol.
+  |||   - `*` always transfers focus to the character list.
+  |||     - subsequent digits are appended to the list
+  |||     - enter tries to parse the digits as a barcode, if it succeeds it is focused
+  |||       - if it's not in the list, we add a new container to the list
+  ||| - if we have a selected container
+  |||   - enter will store the current weight as the gross weight of the container
+  |||   - delete will store the current weight as the tear weight of the container
+  |||   - escape will reset both weights
+  |||
+  record SmartScale where
+    constructor MkSmartScale
+    containers : Zipper Container
+    scale      : Result
+    barcode    : Maybe (TextInput Action)
+    image      : String
+
+  Show SmartScale where
+    show self = """
+      containers : \{show $ length self.containers}
+      scale      : \{show self.scale}
+      barcode    : \{show $ map toString self.barcode}
+      image      : \{show self.image}
+    """
+
+  ||| Handles events when the barcode input is not active
+  |||
+  ||| Receiving a '*' will give focus to the barcode input.
+  handleDefault : Key -> SmartScale -> Response SmartScale Action
+  handleDefault (Alpha 'q') _    = FocusParent
+  handleDefault (Alpha 't') self = Run Tear
+  handleDefault (Alpha 's') self = Run Store
+  handleDefault (Alpha _)   self = Update self
+  handleDefault Left        self = Update self
+  handleDefault Right       self = Update self
+  handleDefault Up          self = Update $ { containers $= goLeft }  self
+  handleDefault Down        self = Update $ { containers $= goRight } self
+  handleDefault Delete      self = Run Tear
+  handleDefault Enter       self = Run Store
+  handleDefault Tab         self = Update $ { containers $= goRight }  self
+  handleDefault Escape      self = Run Reset
+
+  ||| view implementation for smart scale
   export
   View SmartScale Action where
     size self = MkArea 23 (length self.containers + 4)
     paint state window self = do
       let (left, right) = hsplit window 23
       let (top, bottom) = vsplit right 3
-      withState Normal $ showTextAt right.nw $ "Gross Wt: \{show self.scale}"
-      withState Normal $ case self.input of
-        Just input => showTextAt (right.nw + MkArea 0 1) $ "Barcode: " ++ kcap input
-        Nothing    => pure ()
-      withState Normal $ showTextAt (right.nw + MkArea 0 2) $ show self.frameNo
+      let bcpos = right + MkArea 0 1
+      paint @{string} Normal right "Gross Wt: \{show self.scale}"
+      case self.barcode of
+        Just barcode => paint Focused bcpos barcode
+        Nothing      => showTextAt bcpos.nw "Scan or Type '*' to enter barcode"
+      -- xxx: document sixel stuff
       showTextAt left.nw self.image
       hline top.sw top.size.width
-      loop 0 (shrink bottom) self.containers
-      where
-        focusedState : State -> Nat -> State
-        focusedState Focused i = if (i == self.cur) then Focused else Normal
-        focusedState state   _ = state
+      let contents = bottom + MkArea 0 1
+      contents <- case self.containers.left of
+        Lin => do
+          reverseVideo
+          showTextAt contents.nw "---------    ----      ----      ----"
+          sgr [Reset]
+          pure $ snd $ vsplit contents 1
+        (xs :< x) => do
+          showTextAt contents.nw "---------    ----      ----      ----"
+          let contents = snd $ vsplit contents 1
+          contents <- paintVertical Normal contents (toList xs) Nothing
+          paint Focused contents x
+          pure $ snd $ vsplit contents (size x).height
+      ignore $ paintVertical Normal contents self.containers.right Nothing
 
-        loop : Nat -> Rect -> List (Barcode, Weight) -> IO ()
-        loop _ _      []        = pure ()
-        loop i window (x :: xs) = do
-          let (top, bottom) = vsplit window 1
-          let (left, right) = hsplit top 24
-          let state = focusedState state i
-          withState state $ showTextAt left.nw $ show (fst x)
-          paint state right (snd x)
-          loop (S i) bottom xs
+    -- '*' always sets the barcode input to an empty buffer
+    -- this way, if the barcode scanner is used on a partial buffer,
+    -- we clear it before accepting chars from the scanner.
+    handle (Alpha '*') self = Update $ { barcode := Just (empty Select) } self
+    handle key self = case self.barcode of
+      Just barcode => case handle key barcode of
+        (Update x)  => Update $ { barcode := Just x } self
+        FocusParent => Update $ { barcode := Nothing } self
+        FocusNext   => Update $ { containers $= goRight } self
+        (Run x)     => Run x
+      Nothing      => handleDefault key self
 
-    handle (Alpha 'q') _  = FocusParent
-    handle (Alpha c) self = Update $ incFrame $ handleAlpha c self
-    handle Left self      = Update $ incFrame self
-    handle Right self     = Update $ incFrame self
-    handle Up self        = Update $ incFrame $ { cur $= pred } self
-    handle Down self      = Update $ incFrame $ { cur $= S } self
-    handle Delete self    = Run Reset
-    handle Enter self     = handleEnter self
-    handle Tab self       = Update $ incFrame $ { cur $= S } self
-    handle Escape self    = FocusParent
+  ||| Update the selected container by the application of `f`
+  update : (Container -> Container) -> SmartScale -> SmartScale
+  update f = { containers $= update f }
 
-onAction : Action -> SmartScale -> IO SmartScale
-onAction Tear self = case self.scale of
-  Ok weight => pure $ tearCurrent weight self
-  _         => pure $ self
+  onAction : Action -> SmartScale -> IO SmartScale
+  onAction Tear   self = pure $ update (withWeight self.scale tear)  self
+  onAction Store  self = pure $ update (withWeight self.scale store) self
+  onAction Reset  self = pure $ update reset self
+  onAction Select self = pure $ {
+    containers := fromMaybe self.containers select,
+    barcode    := Nothing
+  } self
   where
-    tearCurrent : Weight -> SmartScale -> SmartScale
-    tearCurrent w self = incFrame $ { containers $= loop self.cur } self
-      where
-        loop : Nat -> List (Barcode, Weight) -> List (Barcode, Weight)
-        loop _ [] = []
-        loop Z ((bc, _) :: xs) = (bc, w) :: xs
-        loop (S n) (x :: xs) = x :: loop n xs
-onAction Reset self = pure $ resetCurrent self
-  where
-    resetCurrent : SmartScale -> SmartScale
-    resetCurrent self = incFrame $ { containers $= loop self.cur } self
-      where
-        loop : Nat -> List (Barcode, Weight) -> List (Barcode, Weight)
-        loop _ [] = []
-        loop Z ((bc, _) :: xs) = (bc, 0.g) :: xs
-        loop (S n) (x :: xs) = x :: loop n xs
+    select : Maybe (Zipper Container)
+    select = do
+       digits  <- self.barcode
+       barcode <- fromDigits $ toString digits
+       case find (hasBarcode barcode) self.containers of
+         Nothing => Just $ insert (empty barcode) self.containers
+         Just c  => Just $ c
 
-onScale : Result -> SmartScale -> IO (Maybe SmartScale)
-onScale result self = do
-  pure $ Just $ incFrame $ { scale := result } self
+  export
+  onScale : List Bits8 -> SmartScale -> IO (Maybe SmartScale)
+  onScale result self = do
+    showTextAt (MkPos 0 80) $ show result
+    pure $ Just $ {scale := decode result} self
 
-onImage : String -> SmartScale -> IO (Maybe SmartScale)
-onImage path self = do
-  (sixel, code) <- assert_total $ run ["chafa", "-s", "20", "upload/decoded.0"]
-  pure $ Just $ incFrame $ { image := sixel } self
+  onImage : String -> SmartScale -> IO (Maybe SmartScale)
+  onImage path self = do
+    (sixel, code) <- assert_total $ run ["chafa", "-s", "20", "upload/decoded.0"]
+    pure $ Just $ { image := sixel } self
 
+
+data Event = Raw Char | Keyboard Key | Measurement (List Bits8) | Image String
+%runElab derive "Event" [Show]
+
+debugOnStdin : Char -> List Event -> IO (Maybe (List Event))
+debugOnStdin char self = do
+  pure $ Just $ Raw char :: self
+
+debugOnKey : Key -> List Event -> IO (Maybe (List Event))
+debugOnKey key self = do
+  pure $ Just $ Keyboard key :: self
+
+debugOnScale : List Bits8 -> List Event -> IO (Maybe (List Event))
+debugOnScale result self = do
+  pure $ Just $ Measurement result :: self
+
+debugOnImage : String -> List Event -> IO (Maybe (List Event))
+debugOnImage path self = do
+  pure $ Just $ Image path :: self
 
 ||| Entry point for basic scale command.
 export partial
@@ -276,6 +375,16 @@ main : List String -> IO Builtin.Unit
 main ("--once" :: path :: _) = do
   weight <- getWeight path
   putStrLn $ show weight
+main ("--debug-events" :: _) = do
+  _ <- runRaw
+    [
+      On "Stdin" USBScale.debugOnStdin,
+      On "Scale" debugOnScale,
+      On "Image" debugOnImage
+    ]
+    (putStrLn . show)
+    []
+  pure ()
 main _ = do
   _ <- runView
     onAction
@@ -283,5 +392,5 @@ main _ = do
      On "Scale" onScale,
      On "Image" onImage
     ]
-    (MkSmartScale [] Empty 0 Nothing 0 "No image")
+    (MkSmartScale empty Empty Nothing "No image")
   pure ()
