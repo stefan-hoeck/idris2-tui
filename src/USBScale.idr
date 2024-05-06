@@ -286,11 +286,11 @@ namespace TUI
       contents <- case self.containers.left of
         Lin => do
           reverseVideo
-          showTextAt contents.nw "---------    ----      ----      ----"
+          showTextAt contents.nw "Barcode      Tear      Gross     Net "
           sgr [Reset]
           pure $ snd $ vsplit contents 1
         (xs :< x) => do
-          showTextAt contents.nw "---------    ----      ----      ----"
+          showTextAt contents.nw "Barcode      Tear      Gross     Net "
           let contents = snd $ vsplit contents 1
           contents <- paintVertical Normal contents (toList xs) Nothing
           paint Focused contents x
