@@ -58,6 +58,14 @@ data Result
   | Ok Weight
 %runElab derive "Result" [Show,Ord,Eq,FromJSON,ToJSON]
 
+||| Apply `f` to `x` if the given result is a weight
+|||
+||| If the given Result isn't a valid weight, returns the original
+||| value.
+public export
+withWeight : Result -> (Weight -> a -> a) -> a -> a
+withWeight (Ok weight) f x = f weight x
+withWeight _           _ x = x
 
 ||| Calculate the current weight from the raw binary values
 calcWeight : Bits8 -> Int -> Int -> Int -> Weight
