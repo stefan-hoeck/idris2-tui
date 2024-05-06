@@ -319,11 +319,13 @@ namespace TUI
     -- we clear it before accepting chars from the scanner.
     handle (Alpha '*') self = Update $ { barcode := Just (empty Select) } self
     handle key self = case self.barcode of
+      -- if the barcode view is present, it get focus
       Just barcode => case handle key barcode of
         (Update x)  => Update $ { barcode := Just x } self
         FocusParent => Update $ { barcode := Nothing } self
         FocusNext   => Update $ { containers $= goRight } self
         (Run x)     => Run x
+      -- if not, we handle them here.
       Nothing      => handleDefault key self
 
   ||| Dispatch over global UI actions
