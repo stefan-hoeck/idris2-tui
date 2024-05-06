@@ -117,6 +117,17 @@ namespace List
   find : (a -> Bool) -> Zipper a -> Maybe (Zipper a)
   find p self = seekRight p (rewind self)
 
+  ||| Find an element satisfying some predicate, or insert a default element.
+  |||
+  ||| Always succeeds. The zipper will either be advanced to the first
+  ||| element satisfying the predicate, or the cursor will be under
+  ||| the newly-inserted default element.
+  public export
+  findOrInsert : (a -> Bool) -> Lazy a -> Zipper a -> Zipper a
+  findOrInsert p x self = case find p self of
+    Just self => self
+    Nothing   => insert (force x) self
+
 ||| Based on:
 ||| https://www.st.cs.uni-saarland.de/edu/seminare/2005/advanced-fp/docs/huet-zipper.pdf
 ||| https://pavpanchekha.com/blog/zippers/huet.html

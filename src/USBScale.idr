@@ -249,6 +249,22 @@ namespace TUI
     barcode    : Maybe (TextInput Action)
     image      : String
 
+  ||| Update the selected container by the application of `f`
+  update : (Container -> Container) -> SmartScale -> SmartScale
+  update f = { containers $= update f }
+
+  ||| Check whether user has entered a valid barcode
+  validateBarcode : SmartScale -> Maybe Barcode
+  validateBarcode self = fromDigits $ toString !(self.barcode)
+
+  ||| Select or add the current barcode in the container list
+  select : SmartScale -> SmartScale
+  select self = case validateBarcode self of
+    Nothing => self
+    Just bc => {
+      containers $= findOrInsert (hasBarcode bc) (empty bc),
+      barcode := Nothing
+    } self
 
   ||| Handles events when the barcode input is not active
   |||
