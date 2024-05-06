@@ -165,6 +165,12 @@ namespace InputShim
     {auto impl  : FromJSON eventT}
     handler     : eventT -> stateT -> IO (Maybe stateT)
 
+
+  export
+  test : String
+  test = "{\"tag\": \"Scale\", \"contents\": [[3, 2, 11, 255, 0, 0]]}"
+
+  export
   match : FromJSON a => String -> JSON -> Either String a
   match expected (JObject [("tag", JString got), ("contents", (JArray [rest]))]) =
     if expected == got
@@ -174,9 +180,33 @@ namespace InputShim
       else Left "Incorrect tag"
   match _ _ = Left "Wrong shape"
 
+
+  ||| Try each handler in succession until one decodes an event.
+  |||
+  ||| Returns the original handler, with the event partially applied
+  ||| (which avoids having to mention it in the return type).
+  export
+  decodeNext
+    : String
+    -> List (EventSource stateT)
+    -> Either String (stateT -> IO (Maybe stateT))
+  decodeNext e sources = case parseJSON Virtual e of
+      Left  err => Left "Parse Error: \{show err}"
+      Right parsed => loop parsed sources
+  where
+    loop
+      : JSON
+      -> List (EventSource stateT)
+      -> Either String (stateT -> IO (Maybe stateT))
+    loop parsed []        = Left "Unhandled event: \{e}"
+    loop parsed (x :: xs) = case match @{x.impl} x.tag parsed of
+        Left  err => loop parsed xs
+        Right evt => Right (x.handler evt)
+
   ||| This reads JSON packets over stdin, one per line.
   |||
   ||| Run with python shim in this directory.
+  export
   covering
   runRaw
     :  (sources : List (EventSource stateT))
@@ -232,7 +262,9 @@ namespace InputShim
       next <- getLine
       next' <- case decodeNext next sources of
         Right handler => handler state
-        Left  _       => pure (Just state) -- xxx: log error
+        Left  err     => do
+          Right _ <- fPutStrLn stderr $ show err | Left _ => pure (Just state)
+          pure (Just state)
       case (the (Maybe stateT) next') of
         Nothing => pure state
         Just next => loop next
