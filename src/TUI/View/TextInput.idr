@@ -20,6 +20,12 @@ record TextInput actionT where
   chars     : Zipper Char
   onChange  : actionT
 
+||| Construct an empty text input
+export
+empty : actionT -> TextInput actionT
+empty onChange = TI empty onChange
+
+
 ||| Construct a text input from a string.
 export
 fromString : String  -> TextInput ()
@@ -56,11 +62,11 @@ View (TextInput actionT) actionT where
     putStr $ pack $ tail self.chars.right
 
   -- map keys to their obvious functions.
-  handle Left      = Update . { chars $= goLeft  }
-  handle Right     = Update . { chars $= goRight }
-  handle Delete    = Update . { chars $= delete  }
-  handle (Alpha c) = Update . { chars $= insert c}
-  handle Enter     = const    FocusParent
-  handle Escape    = const    FocusParent
-  handle Tab       = const    FocusNext
-  handle _         = Update . id
+  handle Left      self = Update $ { chars $= goLeft  } self
+  handle Right     self = Update $ { chars $= goRight } self
+  handle Delete    self = Update $ { chars $= delete  } self
+  handle (Alpha c) self = Update $ { chars $= insert c} self
+  handle Enter     self = Run self.onChange
+  handle Escape    self = FocusParent
+  handle Tab       self = FocusNext
+  handle _         self = Update self
