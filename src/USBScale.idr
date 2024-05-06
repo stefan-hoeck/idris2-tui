@@ -216,7 +216,6 @@ namespace TUI
   ||| These actions correspond to the container methods above
   ||| But are handled in the parent view
   data Action = Tear | Store | Reset | Select
-  %runElab derive "Action" [Show]
 
   ||| An MVP of my "Smart Scale" concept
   |||
@@ -250,13 +249,6 @@ namespace TUI
     barcode    : Maybe (TextInput Action)
     image      : String
 
-  Show SmartScale where
-    show self = """
-      containers : \{show $ length self.containers}
-      scale      : \{show self.scale}
-      barcode    : \{show $ map toString self.barcode}
-      image      : \{show self.image}
-    """
 
   ||| Handles events when the barcode input is not active
   |||
@@ -317,57 +309,29 @@ namespace TUI
         (Run x)     => Run x
       Nothing      => handleDefault key self
 
-  ||| Update the selected container by the application of `f`
-  update : (Container -> Container) -> SmartScale -> SmartScale
-  update f = { containers $= update f }
-
+  ||| Dispatch over global UI actions
   onAction : Action -> SmartScale -> IO SmartScale
   onAction Tear   self = pure $ update (withWeight self.scale tear)  self
   onAction Store  self = pure $ update (withWeight self.scale store) self
   onAction Reset  self = pure $ update reset self
-  onAction Select self = pure $ {
-    containers := fromMaybe self.containers select,
-    barcode    := Nothing
-  } self
-  where
-    select : Maybe (Zipper Container)
-    select = do
-       digits  <- self.barcode
-       barcode <- fromDigits $ toString digits
-       case find (hasBarcode barcode) self.containers of
-         Nothing => Just $ insert (empty barcode) self.containers
-         Just c  => Just $ c
+  onAction Select self = pure $ select self
 
+  ||| Update the current scale value when we receive a new packet.
   export
   onScale : List Bits8 -> SmartScale -> IO (Maybe SmartScale)
   onScale result self = do
     showTextAt (MkPos 0 80) $ show result
     pure $ Just $ {scale := decode result} self
 
+  ||| Render the given image path in sixel format when we receive an image event.
+  |||
+  ||| One issue here is that we have don't have access to the window
+  ||| here, so we have to choose a fixed image size to render to. But
+  ||| it's important not call out to a subprocess while rendering.
   onImage : String -> SmartScale -> IO (Maybe SmartScale)
   onImage path self = do
     (sixel, code) <- assert_total $ run ["chafa", "-s", "20", "upload/decoded.0"]
     pure $ Just $ { image := sixel } self
-
-
-data Event = Raw Char | Keyboard Key | Measurement (List Bits8) | Image String
-%runElab derive "Event" [Show]
-
-debugOnStdin : Char -> List Event -> IO (Maybe (List Event))
-debugOnStdin char self = do
-  pure $ Just $ Raw char :: self
-
-debugOnKey : Key -> List Event -> IO (Maybe (List Event))
-debugOnKey key self = do
-  pure $ Just $ Keyboard key :: self
-
-debugOnScale : List Bits8 -> List Event -> IO (Maybe (List Event))
-debugOnScale result self = do
-  pure $ Just $ Measurement result :: self
-
-debugOnImage : String -> List Event -> IO (Maybe (List Event))
-debugOnImage path self = do
-  pure $ Just $ Image path :: self
 
 ||| Entry point for basic scale command.
 export partial
@@ -375,16 +339,6 @@ main : List String -> IO Builtin.Unit
 main ("--once" :: path :: _) = do
   weight <- getWeight path
   putStrLn $ show weight
-main ("--debug-events" :: _) = do
-  _ <- runRaw
-    [
-      On "Stdin" USBScale.debugOnStdin,
-      On "Scale" debugOnScale,
-      On "Image" debugOnImage
-    ]
-    (putStrLn . show)
-    []
-  pure ()
 main _ = do
   _ <- runView
     onAction
