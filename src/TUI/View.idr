@@ -8,6 +8,7 @@
 module TUI.View
 
 
+import Data.Fin
 import public TUI.Event
 import public TUI.Painting
 
@@ -79,3 +80,33 @@ export
   size s = MkArea (length s) 1
   paint state r self = withState state $ showTextAt r.nw self
 
+
+||| Paint the given list of views, laying them out vertically within
+||| `window`.
+|||
+||| The focused view will be painted in the `Focused` state, all
+||| others in the `Normal` state.
+export
+paintVertical
+  : View v _
+  => (state   : State)
+  -> (window  : Rect)
+  -> (self    : List v)
+  -> (focused : Maybe (Fin (length self)))
+  -> IO Rect
+paintVertical state window self focused = loop 0 window self
+where
+  focusedState : State -> Nat -> State
+  focusedState Focused i = case focused of
+    Nothing => state
+    Just f  => case i == finToNat f of
+      True => Focused
+      False => state
+  focusedState state _ = state
+
+  loop : Nat -> Rect -> List v -> IO Rect
+  loop _ window [] = pure window
+  loop i window (x :: xs) = do
+    let (top, bottom) = vsplit window (size x).height
+    paint (focusedState state i) top x
+    loop (S i) bottom xs

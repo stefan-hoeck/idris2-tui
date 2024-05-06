@@ -76,7 +76,6 @@ parameters {k : Nat} {tys : Vect k Type}
 
 
 ||| Render the form's fields vertically.
-export
 paintVertical
   : {k : Nat}
   -> {tys : Vect k Type}
