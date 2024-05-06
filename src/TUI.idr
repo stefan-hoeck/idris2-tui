@@ -20,6 +20,10 @@
 ||| The primary advantage is sheer simplicity: no dependencies are
 ||| required beyond `contrib`, so long as you rely on an
 ||| ANSI-compatible terminal or emulator.
+|||
+||| Anyway, the goal is to eventually promote this module to a
+||| separate project, once it's good enough for AMPII. Try to keep the
+||| ampii-specific code out of this module.
 module TUI
 
 import public TUI.Painting
