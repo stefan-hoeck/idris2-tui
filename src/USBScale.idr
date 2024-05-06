@@ -11,7 +11,9 @@ import Data.Bits
 import Data.Buffer
 import Data.Either
 import Data.Vect
+import Derive.Prelude
 import JSON.Derive
+import Measures
 import System.Concurrency
 import System
 import System.File
@@ -21,10 +23,7 @@ import TUI.Event
 import TUI.View
 import TUI.Painting
 import Util
-
-import Derive.Prelude
-
-import Measures
+import Zipper
 
 
 %language ElabReflection
