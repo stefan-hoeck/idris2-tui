@@ -24,6 +24,17 @@ namespace List
     ||| Characters right of the cursor.
     right  : List a
 
+  ||| Create an empty zipper
+  public export
+  empty : Zipper a
+  empty = Z [<] []
+
+  ||| Move the cursor to the beginning of the zipper.
+  public export
+  rewind : Zipper a -> Zipper a
+  rewind (Z [<] r) = Z [<] r
+  rewind (Z l   r) = Z [<] $ (toList l) ++ r
+
   ||| Create a zipper from a list
   public export
   fromList : List a -> Zipper a
@@ -32,11 +43,12 @@ namespace List
     right = []
   }
 
+  ||| Convert a zipper to a list.
   public export
   toList : Zipper a -> List a
   toList self = (toList self.left) ++ (toList self.right)
 
-  ||| Insert a character.
+  ||| Insert an element at the current position.
   public export
   insert : a -> Zipper a -> Zipper a
   insert c = { left $= (:< c) }
@@ -49,27 +61,59 @@ namespace List
   ||| Move insertion point rightward
   public export
   goRight : Zipper a -> Zipper a
-  goRight self = case self.right of
-    []      => self
-    x :: xs => {
-      left  $= (:< x),
-      right := xs
-    } self
+  goRight (Z l [])        = Z l        []
+  goRight (Z l (x :: xs)) = Z (l :< x) xs
 
   ||| Move insertion point rightward
   public export
   goLeft : Zipper a -> Zipper a
-  goLeft self = case self.left of
-    [<]     => self
-    xs :< x => {
-      left  := xs,
-      right $= (x ::)
-    } self
+  goLeft (Z [<] r)       = Z [<] r
+  goLeft (Z (xs :< x) r) = Z xs    (x :: r)
 
   ||| Get the length of both halves of the zipper
   public export
   length : Zipper a -> Nat
   length self = length self.left + length self.right
+
+  ||| Replace element at the current position by the application of `f`.
+  |||
+  ||| If the zipper is empty, returns an empty zipper.
+  |||
+  ||| If the zipper has been rewound, has no effect.
+  public export
+  update : (a -> a) -> Zipper a -> Zipper a
+  update _ self@(Z [<] [])        = self
+  update f self@(Z [<] (x :: xs)) = self
+  update f self@(Z (xs :< x) r)   = Z (xs :< f x) r
+
+  ||| Replace element at the current position.
+  |||
+  ||| If the zipper is empty, returns an empty zipper.
+  |||
+  ||| If the zipper has been rewound, has no effect.
+  public export
+  replace : a -> Zipper a -> Zipper a
+  replace x = update (const x)
+
+  ||| Advance rightward until `p x` gives `True`.
+  |||
+  ||| If found, returns a zipper with the cursor at the given
+  ||| position. If we reach the end of the zipper, returns Nothing.
+  public export
+  seekRight : (a -> Bool) -> Zipper a -> Maybe (Zipper a)
+  seekRight p      (Z l         []) = Nothing
+  seekRight p self@(Z [<]       r)  = seekRight p $ assert_smaller self $ goRight self
+  seekRight p self@(Z (xs :< x) r)  = case p x of
+    True  => Just self
+    False => seekRight p $ assert_smaller self (goRight self)
+
+  ||| Advance right from the beginning, until p returns True.
+  |||
+  ||| If found, return a zipper with the cursor at the given
+  ||| position. If we reach the end, returns Nothing.
+  public export
+  find : (a -> Bool) -> Zipper a -> Maybe (Zipper a)
+  find p self = seekRight p (rewind self)
 
 ||| Based on:
 ||| https://www.st.cs.uni-saarland.de/edu/seminare/2005/advanced-fp/docs/huet-zipper.pdf
