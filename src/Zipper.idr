@@ -101,11 +101,13 @@ namespace List
   ||| position. If we reach the end of the zipper, returns Nothing.
   public export
   seekRight : (a -> Bool) -> Zipper a -> Maybe (Zipper a)
-  seekRight p      (Z l         []) = Nothing
-  seekRight p self@(Z [<]       r)  = seekRight p $ assert_smaller self $ goRight self
-  seekRight p self@(Z (xs :< x) r)  = case p x of
-    True  => Just self
-    False => seekRight p $ assert_smaller self (goRight self)
+  seekRight p self@(Z [<]       []) = Nothing
+  seekRight p self@(Z (xs :< x) []) = case p x of
+    True => Just self
+    False => Nothing
+  seekRight p self@(Z l  (x :: xs))  = case p x of
+    True  => Just $ goRight self
+    False => seekRight p $ assert_smaller self $ goRight self
 
   ||| Advance right from the beginning, until p returns True.
   |||
