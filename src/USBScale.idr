@@ -257,6 +257,7 @@ namespace TUI
   handleDefault (Alpha 'q') _    = FocusParent
   handleDefault (Alpha 't') self = Run Tear
   handleDefault (Alpha 's') self = Run Store
+  handleDefault (Alpha 'r') self = Run Reset
   handleDefault (Alpha _)   self = Update self
   handleDefault Left        self = Update self
   handleDefault Right       self = Update self
