@@ -128,8 +128,27 @@ namespace Data.SnocList
   tail (x :: xs) = xs
 
 
+namespace Data.List
+
+  ||| Update the given list at index `i` by the application of `f`.
+  public export
+  updateAt
+    :  (f : a -> a)
+    -> (l : List a)
+    -> (i : Fin (length l))
+    -> List a
+  updateAt f (x :: xs) FZ     = f x :: xs
+  updateAt f (x :: xs) (FS i) =   x :: updateAt f xs i
+
+
 namespace Data.Fin
   ||| Decrement the given `Fin` without changing the bound.
+  |||
+  ||| Wraps around to `last` when applied to `FZ`, mirroring the
+  ||| behavior of `finS`, which wraps around to `FZ` when applied to
+  ||| `last`.
+  |||
+  ||| XXX: rename to `finPred`. `predS` is nonsense.
   public export
   predS : {n : Nat} -> Fin n -> Fin n
   predS FZ     = last
@@ -143,7 +162,6 @@ namespace Data.Nat
   diff a b = case a < b of
     True  => b `minus` a
     False => a `minus` b
-
 
 namespace Data.Vect.Quantifiers
   ||| Map a function over a heterogenous vector.
