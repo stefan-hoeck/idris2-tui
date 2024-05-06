@@ -166,6 +166,17 @@ vline pos@(MkPos x y) height = do
     Z   => pure ()
     S n => vline (MkPos x (S y)) n
 
+||| Fill a rectangle with the given character
+fill : Char -> Rect -> IO ()
+fill c box = loop box.size.height
+  where
+    loop : Nat -> IO ()
+    loop Z = pure ()
+    loop i@(S n) = do
+      let pos = MkPos box.pos.x i
+      showTextAt pos $ replicate box.size.width c
+      loop n
+
 ||| Draw a box around the given rectangle
 |||
 ||| Use with `shrink` or `inset` to layout contents within the frame.
@@ -183,14 +194,12 @@ box r = do
   boxChar r.sw SW
   boxChar r.se SE
 
-
 ||| Default styles for rendering text
 public export
 styleForState : State -> IO ()
 styleForState Normal   = sgr [Reset]
 styleForState Focused  = reverseVideo
 styleForState Disabled = sgr [SetStyle Faint]
-
 
 ||| Paint with the appropriate style for the given state.
 |||
