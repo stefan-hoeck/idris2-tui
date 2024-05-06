@@ -210,7 +210,7 @@ namespace TUI
       let (gross,   net   ) = hsplit top 10
       paint state barcode self.barcode
       paint state tear    self.tear
-      paint state gross   self.tear
+      paint state gross   self.gross
       paint state net     self.net
 
   ||| These actions correspond to the container methods above
