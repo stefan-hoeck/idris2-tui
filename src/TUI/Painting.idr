@@ -167,6 +167,7 @@ vline pos@(MkPos x y) height = do
     S n => vline (MkPos x (S y)) n
 
 ||| Fill a rectangle with the given character
+export
 fill : Char -> Rect -> IO ()
 fill c box = loop box.size.height
   where
