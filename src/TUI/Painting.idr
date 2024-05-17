@@ -47,6 +47,12 @@ import        Data.String
 public export
 data State = Normal | Focused | Disabled
 
+||| Demote the `Focused` state to the `Normal` state.
+public export
+demoteFocused : State -> State
+demoteFocused Focused = Normal
+demoteFocused x       = x
+
 ||| Functions and related to putting text on the screen
 ||| Move the cursor to the given point
 export
