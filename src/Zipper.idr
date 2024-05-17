@@ -24,6 +24,22 @@ namespace List
     ||| Characters right of the cursor.
     right  : List a
 
+
+  ||| Get the item under the cursor, if there is one.
+  public export
+  cursor : Zipper a -> Maybe a
+  cursor (Z [<]      l) = Nothing
+  cursor (Z (_ :< x) l) = Just x
+
+  ||| Decompose a Zipper into Left, Cursor, Right
+  |||
+  ||| A useful helper routine for client code wishing to traverse the
+  ||| zipper.
+  public export
+  decompose : Zipper a -> (List a, Maybe a, List a)
+  decompose (Z [<]       r) = ([],        Nothing, r)
+  decompose (Z (xs :< x) r) = (toList xs, Just x,  r)
+
   ||| Create an empty zipper
   public export
   empty : Zipper a
@@ -38,15 +54,17 @@ namespace List
   ||| Create a zipper from a list
   public export
   fromList : List a -> Zipper a
-  fromList list = Z {
-    left  = cast list,
-    right = []
-  }
+  fromList list = Z (cast list) []
 
   ||| Convert a zipper to a list.
   public export
   toList : Zipper a -> List a
   toList self = (toList self.left) ++ (toList self.right)
+
+  ||| Convert a zipper to a non-empty list or null.
+  public export
+  toList1 : Zipper a -> Maybe (List1 a)
+  toList1 = fromList . toList
 
   ||| Insert an element at the current position.
   public export
@@ -94,6 +112,17 @@ namespace List
   public export
   replace : a -> Zipper a -> Zipper a
   replace x = update (const x)
+
+  ||| Set the cursor over the Nth child from the left.
+  |||
+  ||| Stops at the end if `n` is greater than the length of the zipper.
+  public export
+  seekTo : Nat -> Zipper a -> Zipper a
+  seekTo n self = loop n $ rewind self
+    where
+      loop : Nat -> Zipper a -> Zipper a
+      loop Z     self = self
+      loop (S n) self = seekTo n (goRight self)
 
   ||| Advance rightward until `p x` gives `True`.
   |||
