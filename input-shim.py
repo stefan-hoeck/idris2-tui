@@ -67,17 +67,18 @@ try:
         args=('', 8000, q),
         daemon=True
     )
-    scaleThread = threading.Thread(
-        target=readScale,
-        args=(sys.argv[1], q),
-        daemon=True
-    )
     stdinThread = threading.Thread(
         target=readStdin,
         args=(q,),
         daemon=True
     )
-    scaleThread.start()
+    if len(sys.argv) >= 2:
+        scaleThread = threading.Thread(
+            target=readScale,
+            args=(sys.argv[1], q),
+            daemon=True
+        )
+        scaleThread.start()
     stdinThread.start()
     serverThread.start()
     while True:
