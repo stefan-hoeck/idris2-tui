@@ -65,10 +65,9 @@ View (Menu String actionT) actionT where
 
   handle Up     state = Update $ { choice := predS state.choice } state
   handle Down   state = Update $ { choice := finS  state.choice } state
-  handle Escape state = FocusParent
-  handle Enter  state = FocusParent
-  handle Left   state = FocusParent
-  handle Tab    state = FocusNext
+  handle Escape state = Exit
+  handle Enter  state = Do state.onChange
+  handle Left   state = Do state.onChange
   handle _      state = Update state
 
 ||| Construct a menu from a vector of views

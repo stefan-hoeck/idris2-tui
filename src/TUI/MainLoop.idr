@@ -142,10 +142,9 @@ namespace PureIdris
 
     wrapView : Key -> stateT -> IO (Maybe stateT)
     wrapView k s = case handle k s of
-      Update s    => pure $ Just s
-      FocusParent => pure Nothing
-      FocusNext   => pure $ Just s
-      Run action  => pure $ Just !(handler action s)
+      Exit           => pure $ Nothing
+      Update s       => pure $ Just s
+      Do     action  => pure $ Just !(handler action s)
 
 
 ||| This is the current mainloop stack.
@@ -290,7 +289,6 @@ namespace InputShim
   where
     wrapView : Key -> stateT -> IO (Maybe stateT)
     wrapView k s = case handle k s of
-      Update s    => pure $ Just s
-      FocusParent => pure Nothing
-      FocusNext   => pure $ Just s
-      Run action  => pure $ Just $ !(onAction action s)
+      Exit          => pure Nothing
+      Update s      => pure $ Just s
+      Do     action => pure $ Just $ !(onAction action s)

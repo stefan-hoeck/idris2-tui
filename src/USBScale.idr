@@ -241,7 +241,6 @@ namespace TUI
   |||   - enter will store the current weight as the gross weight of the container
   |||   - delete will store the current weight as the tear weight of the container
   |||   - escape will reset both weights
-  |||
   record SmartScale where
     constructor MkSmartScale
     containers : Zipper Container
@@ -255,7 +254,7 @@ namespace TUI
 
   ||| Check whether user has entered a valid barcode
   validateBarcode : SmartScale -> Maybe Barcode
-  validateBarcode self = fromDigits $ toString !(self.barcode)
+  validateBarcode self = fromDigits $ toString !self.barcode
 
   ||| Select or add the current barcode in the container list
   select : SmartScale -> SmartScale
@@ -270,49 +269,42 @@ namespace TUI
   |||
   ||| Receiving a '*' will give focus to the barcode input.
   handleDefault : Key -> SmartScale -> Response SmartScale Action
-  handleDefault (Alpha 'q') _    = FocusParent
-  handleDefault (Alpha 't') self = Run Tear
-  handleDefault (Alpha 's') self = Run Store
-  handleDefault (Alpha 'r') self = Run Reset
+  handleDefault (Alpha 'q') _    = Exit
+  handleDefault (Alpha 't') self = Do Tear
+  handleDefault (Alpha 's') self = Do Store
+  handleDefault (Alpha 'r') self = Do Reset
   handleDefault (Alpha _)   self = Update self
   handleDefault Left        self = Update self
   handleDefault Right       self = Update self
   handleDefault Up          self = Update $ { containers $= goLeft }  self
   handleDefault Down        self = Update $ { containers $= goRight } self
-  handleDefault Delete      self = Run Tear
-  handleDefault Enter       self = Run Store
+  handleDefault Delete      self = Do Tear
+  handleDefault Enter       self = Do Store
   handleDefault Tab         self = Update $ { containers $= goRight }  self
-  handleDefault Escape      self = Run Reset
+  handleDefault Escape      self = Do Reset
 
   ||| view implementation for smart scale
   export
   View SmartScale Action where
     size self = MkArea 23 (length self.containers + 4)
     paint state window self = do
-      let (left, right) = hsplit window 23
-      let (top, bottom) = vsplit right 3
-      let bcpos = right + MkArea 0 1
-      paint @{string} Normal right "Gross Wt: \{show self.scale}"
-      case self.barcode of
-        Just barcode => paint Focused bcpos barcode
-        Nothing      => showTextAt bcpos.nw "Scan or Type '*' to enter barcode"
+      let (top, bottom) = vdivide window 3
+      hpane
+        Normal
+        top
+        self.image
+        (Util.Data.Either.fromMaybe
+          "Scan or Type '*' to enter barcode"
+          self.barcode)
+        23
       -- xxx: document sixel stuff
-      showTextAt left.nw self.image
       hline top.sw top.size.width
-      let contents = bottom + MkArea 0 1
-      contents <- case self.containers.left of
+      case self.containers.left of
         Lin => do
-          reverseVideo
-          showTextAt contents.nw "Barcode      Tear      Gross     Net "
-          sgr [Reset]
-          pure $ snd $ vsplit contents 1
-        (xs :< x) => do
-          showTextAt contents.nw "Barcode      Tear      Gross     Net "
-          let contents = snd $ vsplit contents 1
-          contents <- paintVertical Normal contents (toList xs) Nothing
-          paint Focused contents x
-          pure $ snd $ vsplit contents (size x).height
-      ignore $ paintVertical Normal contents self.containers.right Nothing
+          paint @{string} Focused bottom "Barcode      Tear      Gross     Net "
+        xs => do
+          bottom <- packTop @{string} Normal bottom "Barcode      Tear      Gross     Net "
+          ignore $ paintVertical state bottom self.containers
 
     -- '*' always sets the barcode input to an empty buffer
     -- this way, if the barcode scanner is used on a partial buffer,
@@ -322,12 +314,11 @@ namespace TUI
       -- if the barcode view is present, it get focus
       Just barcode => case handle key barcode of
         (Update x)  => Update $ { barcode := Just x } self
-        FocusParent => Update $ { barcode := Nothing } self
-        FocusNext   => Update $ { containers $= goRight } self
-        (Run x)     => Run x
+        Exit        => Update $ { barcode := Nothing } self
+        (Do x)      => Do x
       -- if not, we handle them here.
       Nothing      => handleDefault key self
-
+{-
   ||| Dispatch over global UI actions
   onAction : Action -> SmartScale -> IO SmartScale
   onAction Tear   self = pure $ update (withWeight self.scale tear)  self
@@ -346,7 +337,8 @@ namespace TUI
   |||
   ||| One issue here is that we have don't have access to the window
   ||| here, so we have to choose a fixed image size to render to. But
-  ||| it's important not call out to a subprocess while rendering.
+  ||| apparently it's important not call out to a subprocess while
+  ||| rendering.
   onImage : String -> SmartScale -> IO (Maybe SmartScale)
   onImage path self = do
     (sixel, code) <- assert_total $ run ["chafa", "-s", "20", "upload/decoded.0"]
@@ -358,6 +350,8 @@ main : List String -> IO Builtin.Unit
 main ("--once" :: path :: _) = do
   weight <- getWeight path
   putStrLn $ show weight
+main _ = pure ()
+
 main _ = do
   _ <- runView
     onAction

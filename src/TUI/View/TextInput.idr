@@ -25,7 +25,6 @@ export
 empty : actionT -> TextInput actionT
 empty onChange = TI empty onChange
 
-
 ||| Construct a text input from a string.
 export
 fromString : String  -> TextInput ()
@@ -66,7 +65,6 @@ View (TextInput actionT) actionT where
   handle Right     self = Update $ { chars $= goRight } self
   handle Delete    self = Update $ { chars $= delete  } self
   handle (Alpha c) self = Update $ { chars $= insert c} self
-  handle Enter     self = Run self.onChange
-  handle Escape    self = FocusParent
-  handle Tab       self = FocusNext
+  handle Enter     self = Do self.onChange
+  handle Escape    self = Exit
   handle _         self = Update self

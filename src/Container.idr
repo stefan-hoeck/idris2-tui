@@ -18,7 +18,6 @@ public export
 0 Id : Type
 Id = String
 
-
 ||| How long a given food item is expected to last.
 |||
 ||| This is meant to capture the different representations of product
@@ -45,14 +44,12 @@ expiryDate (Expires x)       = Just $ x
 expiryDate Forever           = Nothing
 expiryDate Unknown           = Nothing
 
-
 ||| True if the container expires on or after the given date
 public export
 expiresOn : Date -> LifeTime -> Bool
 expiresOn date lt = case expiryDate lt of
   Nothing => False
   Just e  => date <= e
-
 
 ||| The type of container.
 public export
@@ -62,8 +59,6 @@ data ContainerType
   | Opened
   | Reusable
 %runElab derive "ContainerType" [Show,Eq,FromJSON,ToJSON]
-
-
 
 ||| Abstract container of a given food.
 |||

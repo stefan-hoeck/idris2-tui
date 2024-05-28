@@ -22,10 +22,29 @@ record Pos where
   y : Nat
 %runElab derive "Pos" [Eq, Ord, Show]
 
-||| Top-left screen corner
-public export
-origin : Pos
-origin = MkPos 1 1
+namespace Pos
+
+  ||| Top-left screen corner
+  public export
+  origin : Pos
+  origin = MkPos 1 1
+
+  public export
+  (.shiftRight) : Pos -> Nat -> Pos
+  (.shiftRight) self offset = { x $= (+ offset) } self
+
+  public export
+  (.shiftLeft) : Pos -> Nat -> Pos
+  (.shiftLeft) self offset = { x $= (`minus` offset) } self
+
+  public export
+  (.shiftDown) : Pos -> Nat -> Pos
+  (.shiftDown) self offset = { y $= (+ offset) } self
+
+  public export
+  (.shiftUp) : Pos -> Nat -> Pos
+  (.shiftUp) self offset = { y $= (`minus` offset) } self
+
 
 ||| The dimensions of a screen view
 public export
@@ -159,9 +178,20 @@ namespace Rect
   hsplit b w =
     let
       left  = MkRect b.nw (MkArea w b.size.height)
-      right = fromPoints (b.nw + MkArea w 0) b.se
+      right = fromPoints (b.nw.shiftRight w) b.se
     in
       (left , right)
+
+  ||| Like `hsplit`, but leave room for a vertical separator
+  export
+  hdivide : Rect -> Nat -> (Rect, Rect)
+  hdivide b w =
+    let
+      left  = MkRect b.nw (MkArea w b.size.height)
+      right = fromPoints (b.nw.shiftRight (w + 1)) b.se
+    in
+      (left , right)
+
 
   ||| Split vertically at `h` and return the pieces
   export
@@ -169,7 +199,17 @@ namespace Rect
   vsplit b h =
     let
       top = MkRect b.nw (MkArea b.size.width h)
-      bot = fromPoints (b.nw + MkArea 0 h) b.se
+      bot = fromPoints (b.nw.shiftDown h) b.se
+    in
+      (top , bot)
+
+  ||| Like `vsplit` but leave room for a horizontal separator.
+  export
+  vdivide : Rect -> Nat -> (Rect, Rect)
+  vdivide b h =
+    let
+      top = MkRect b.nw (MkArea b.size.width h)
+      bot = fromPoints (b.nw.shiftDown (h + 1)) b.se
     in
       (top , bot)
 
@@ -195,6 +235,30 @@ namespace Rect
   export
   (-) : Rect -> Area -> Rect
   r - v = MkRect (r.nw - v) r.size
+
+  ||| Position contents relative to the top left of container.
+  export
+  relativeTo : (container : Rect) -> (contents : Rect) -> Rect
+  relativeTo (MkRect nw _) (MkRect offset size) =
+    let pos = MkPos (nw.x + offset.x) (nw.y + offset.y)
+    in MkRect pos size
+
+  public export
+  (.shiftRight) : Rect -> Nat -> Rect
+  (.shiftRight) self offset = { pos $= (+ (MkArea offset 0)) } self
+
+  public export
+  (.shiftLeft) : Rect -> Nat -> Rect
+  (.shiftLeft) self offset = { pos := (self.pos - (MkArea offset 0)) } self
+
+  public export
+  (.shiftDown) : Rect -> Nat -> Rect
+  (.shiftDown) self offset = { pos $= (+ (MkArea 0 offset)) } self
+
+  public export
+  (.shiftUp) : Rect -> Nat -> Rect
+  (.shiftUp) self offset = { pos := (self.pos - (MkArea 0 offset)) } self
+
 
 ||| A common default size of terminal window.
 export
