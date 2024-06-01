@@ -1,11 +1,11 @@
 ||| Minimalist terminal UI Framework
 |||
 ||| An Editable String View
-module TUI.View.TextInput
+module TUI.Component.TextInput
 
 
 import Data.String
-import TUI.View
+import TUI.Component
 import Util
 import Zipper
 
@@ -15,26 +15,46 @@ import Zipper
 
 ||| An Editable String View.
 export
-record TextInput actionT where
+record TextInput where
   constructor TI
   chars     : Zipper Char
-  onChange  : actionT
 
 ||| Construct an empty text input
 export
-empty : actionT -> TextInput actionT
-empty onChange = TI empty onChange
+empty : TextInput
+empty = TI empty
 
 ||| Construct a text input from a string.
 export
-fromString : String  -> TextInput ()
-fromString s = TI { chars = fromList $ unpack s, onChange = () }
+fromString : String -> TextInput
+fromString s = TI $ fromList $ unpack s
 
 ||| get the string value from the text input.
 export
-toString : TextInput _ -> String
+toString : TextInput -> String
 toString self = pack $ toList self.chars
 
+namespace Model
+
+  data Action
+    = Ignore
+    | Accept
+    | Cancel
+    | Delete
+    | GoLeft
+    | GoRight
+    | Insert Char
+
+  Model TextInput (Maybe String) Model.Action where
+    update Ignore     self = Left self
+    update Accept     self = Right $ Just $ toString self
+    update Cancel     self = Right Nothing
+    update Delete     self = Left $ { chars $= delete  } self
+    update GoLeft     self = Left $ { chars $= goLeft  } self
+    update GoRight    self = Left $ { chars $= goRight } self
+    update (Insert c) self = Left $ { chars $= insert c} self
+
+{-
 ||| Implement View for TextInput
 export
 View (TextInput actionT) actionT where

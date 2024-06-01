@@ -1,7 +1,7 @@
 ||| Minimalist terminal UI framework.
 |||
 ||| Editing and navigation for a set of labeled subviews.
-module TUI.View.Form
+module TUI.Component.Form
 
 import public Data.Vect
 import public Data.Vect.Quantifiers
@@ -15,6 +15,7 @@ import Zipper
 
 %default total
 
+{-
 
 ||| Store the metadata for each form field.
 |||

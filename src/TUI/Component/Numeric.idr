@@ -1,35 +1,36 @@
 ||| Minimalist terminal UI framework.
 |||
 ||| A Numeric Input Widget
-module TUI.View.Numeric
+module TUI.Component.Numeric
 
 
 import Data.Fin
 import Data.String
 import Data.SnocList
-import TUI.View
+import TUI.Component
 import Util
 
 
 %default total
 
 
-||| The subset of possible keys that we handle.
+||| The set of symbols we accept.
+export
 data Input
   = Digit (Fin 10)
   | Dot
   | Minus
+
+||| A sequence of digits representing a valid positive number.
+data Digits
+  = Integral (SnocList (Fin 10))
+  | Decimal  (SnocList (Fin 10)) (SnocList (Fin 10))
 
 charToDigit : Char -> Maybe (Fin 10)
 charToDigit char = integerToFin (cast $ ord char - ord '0') 10
 
 digitToChar : Fin 10 -> Char
 digitToChar d = cast $ (ord '0') + cast (finToNat d)
-
-||| An editable string of digits, with or without a decimal point.
-data Digits
-  = Integral (SnocList (Fin 10))
-  | Decimal  (SnocList (Fin 10)) (SnocList (Fin 10))
 
 ||| Insert a single digit value.
 insertDigits : Fin 10 -> Digits -> Digits
@@ -40,11 +41,16 @@ insertDigits d (Decimal i ds) = Decimal  i (ds :< d)
 export empty : Digits ; empty = Integral [<]
 
 ||| Convert a digit string to a string
-digitsToString : SnocList (Fin 10) -> String
-digitsToString [<] = "0"
-digitsToString xs = kcap $ digitToChar <$> xs
+digitsToString : Digits -> String
+digitsToString self = case self of
+  Integral   ds => impl ds
+  Decimal  i ds => "\{show i}.\{impl ds}"
+  where
+    impl : SnocList (Fin 10) -> String
+    impl [<] = "0"
+    impl xs  = kcap $ digitToChar <$> xs
 
-||| An editable number widget.
+||| An editable number.
 |||
 ||| This filters out non-numeric keypresses, and cannot hold a
 ||| non-numeric value.
@@ -54,49 +60,46 @@ digitsToString xs = kcap $ digitToChar <$> xs
 ||| - dot ignored after first press.
 ||| - backspace clears whole input (as it's usually easier to start again).
 export
-record Numeric a actionT where
+record Numeric a where
   constructor N
   digits   : Digits
   sign     : Bool
   step     : a
-  onChange : actionT
 
 ||| Get the width of the entire control, including symbols and padding.
+export
 width : Digits -> Nat
 width (Integral  ds)    = 3 + length ds
 width (Decimal   is ds) = max 6 (3 + length is + 1 + length ds)
 
 ||| Insert a single digit.
-insert : Input -> Numeric a actionT -> Numeric a actionT
+export
+insert : Input -> Numeric a -> Numeric a
 insert (Digit d) self = { digits $= insertDigits d } self
 insert Dot       self = case self.digits of
   Integral ds   => { digits := Decimal ds [<] } self
   Decimal  _  _ => self
 insert Minus     self = { sign $= not } self
 
-||| Get the string represntation of the numeric widget.
+||| Clear the input field.
 export
-toString : Numeric a _ -> String
-toString (N (Integral xs) sign _ _) =
-  if sign
-    then "-\{digitsToString xs}"
-    else " \{digitsToString xs}"
-toString (N (Decimal integer decimal) sign _ _) =
-  if sign
-    then "-\{digitsToString integer}.\{digitsToString decimal}"
-    else " \{digitsToString integer}.\{digitsToString decimal}"
+clear : Numeric a -> Numeric a
+clear = { digits := empty }
 
-toNat : Num a => Numeric a _ -> Maybe a
-toNat = parsePositive . toString
+||| Toggle the sign of the input
+export
+negate : Numeric a -> Numeric a
+negate = { sign $= not }
 
-toInteger : Num a => Neg a => Numeric a _ -> Maybe a
-toInteger = parseInteger . toString
-
-toDouble : Numeric a _ -> Maybe Double
-toDouble = parseDouble . toString
+||| Get a string representation of the component.
+export
+toString : Numeric a -> String
+toString self = if self.sign
+  then "-\{digitsToString self.digits}"
+  else " \{digitsToString self.digits}"
 
 ||| Generic paint function for all variants of numeric widget.
-paintNumeric : Char -> State -> Rect -> Numeric a _ -> IO ()
+paintNumeric : Char -> State -> Rect -> Numeric a -> IO ()
 paintNumeric symbol state window self = do
   showCharAt window.nw symbol
   case state of
@@ -105,64 +108,101 @@ paintNumeric symbol state window self = do
   showTextAt (window.nw + MkArea 2 0) (toString self)
   sgr [Reset]
 
-||| Helper function for handleCommon
-handleChar : (Char -> Maybe Input) -> Char -> Numeric a actionT -> Numeric a actionT
-handleChar f char self = fromMaybe self $ (flip insert) self <$> f char
+||| Model implementation for Numeric
+namespace Model
 
-||| Factor out event handling logic common to all variants.
-handleCommon
-  : Key
-  -> (Char -> Maybe Input)
-  -> Numeric a actionT
-  -> Response (Numeric a actionT) actionT
-handleCommon (Alpha char) f self = Update $ handleChar f char self
-handleCommon Delete       _ self = Update $ { digits := empty } self
-handleCommon Left         _ self = Do self.onChange
-handleCommon Enter        _ self = Do self.onChange
-handleCommon Escape       _ self = Exit
-handleCommon _            _ self = Update self
+  public export
+  interface ToValue a where
+    (.value) : Numeric a -> Maybe a
 
--- the unicode symbols which decorate the widget
-natSymbol  : Char ; natSymbol  = cast 0x2115
-intSymbol  : Char ; intSymbol  = cast 0x2124
-realSymbol : Char ; realSymbol = cast 0x211d
+  export ToValue Nat     where (.value) = parsePositive . toString
+  export ToValue Integer where (.value) = parseInteger  . toString
+  export ToValue Double  where (.value) = parseDouble   . toString
 
-||| This implementation ignores decimals and minus signs.
-export
-View (Numeric Nat actionT) actionT where
-  size self = MkArea (width self.digits) 1
-  paint state window self = paintNumeric natSymbol state window self
-  handle key = handleCommon key $ (map Digit) . charToDigit
+  public export
+  interface FromValue a where
+    from : a -> Numeric a
 
-||| This implementation ignores decimals, but handles the minus sign.
-export
-View (Numeric Integer actionT) actionT where
-  size self = MkArea (width self.digits) 1
-  paint state window self = paintNumeric intSymbol state window self
-  handle key = handleCommon key special
-    where
-      special : Char -> Maybe Input
-      special '-' = Just Minus
-      special c   = Digit <$> charToDigit c
+  public export
+  data Action
+    = Ignore
+    | Accept
+    | Cancel
+    | Clear
+    | Negate
+    | Insert Input
 
-||| This implementation handles both decimal and minus sign.
-export
-View (Numeric Double actionT) actionT where
-  size self = MkArea (width self.digits) 1
-  paint state window self = paintNumeric realSymbol state window self
-  handle key = handleCommon key special
-    where
-      special : Char -> Maybe Input
-      special '-' = Just Minus
-      special '.' = Just Dot
-      special c   = Digit <$> charToDigit c
+  export
+  implementation
+       ToValue a
+    => Model (Numeric a) (Maybe a) Model.Action
+  where
+    update Ignore self     = Left  $ self
+    update Accept self     = Right $ self.value
+    update Cancel self     = Right Nothing
+    update Clear  self     = Left  $ clear  self
+    update Negate self     = Left  $ negate self
+    update (Insert i) self = Left  $ insert i self
+
+namespace View
+
+  public export
+  interface Symbol a where
+    symbol : Char
+
+  -- the unicode symbols which decorate the widget
+  export Symbol Nat     where symbol = cast 0x2115
+  export Symbol Integer where symbol = cast 0x2124
+  export Symbol Double  where symbol = cast 0x211d
+
+  ||| View is implemented for any number type which defines a symbol.
+  export
+  Symbol a => View (Numeric a) where
+    size self = MkArea (width self.digits) 1
+    paint state window self = paintNumeric (symbol {a = a}) state window self
+
+namespace Controller
+
+  ||| Event handling common to all variants.
+  handleCommon
+    : Key
+    -> (Char -> Maybe Input)
+    -> Model.Action
+  handleCommon (Alpha char) f = fromMaybe Ignore $ Insert <$> f char
+  handleCommon Delete       _ = Clear
+  handleCommon Left         _ = Cancel
+  handleCommon Enter        _ = Accept
+  handleCommon Escape       _ = Cancel
+  handleCommon _            _ = Ignore
+
+  ||| This controller doesn't accept decimal or negation
+  Controller (Numeric Nat) Model.Action where
+    handle key _ = handleCommon key $ (map Digit) . charToDigit
+
+  ||| This implementation ignores decimals, but handles the minus sign.
+  export
+  Controller (Numeric Integer) Model.Action where
+    handle key _ = handleCommon key special
+      where
+        special : Char -> Maybe Input
+        special '-' = Just Minus
+        special c   = Digit <$> charToDigit c
+
+  ||| This implementation handles both decimal and minus sign.
+  export
+  Controller (Numeric Double) Model.Action where
+    handle key _ = handleCommon key special
+      where
+        special : Char -> Maybe Input
+        special '-' = Just Minus
+        special '.' = Just Dot
+        special c   = Digit <$> charToDigit c
 
 ||| Create a numeric widget from a number value.
 export
-numeric : a -> a -> actionT -> Numeric a actionT
+numeric : a -> a -> actionT -> Numeric a
 numeric value step onChange = N {
   digits   = empty, -- xxx: decode
   sign     = False,
-  step     = step,
-  onChange = onChange
+  step     = step
 }

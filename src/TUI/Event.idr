@@ -6,94 +6,63 @@
 module TUI.Event
 
 
-import Data.IORef
-import Derive.Prelude
+import public JSON
 import JSON.Derive
-import System
-import System.Concurrency
-import Util
 
 
-%language ElabReflection
 %default total
+%language ElabReflection
 
 
-||| This is a pure Queue data-structure more or less copied from
-||| idris2-containers
+||| A string event tag, and the associated event handler.
+public export
+record EventSource stateT actionT where
+  constructor On
+  tag         : String
+  {auto impl  : FromJSON eventT}
+  handler     : eventT -> stateT -> actionT
+
+||| Decode the top-level record in the given JSON.
 |||
-||| It's used internally to store the FIFO data.
-record Queue valueT where
-  constructor Q
-  front : List valueT
-  back  : SnocList valueT
-
-empty : Queue valueT
-empty = Q [] [<]
-
-enqueue : valueT -> Queue valueT -> Queue valueT
-enqueue v = { back $= (:< v) }
-
-dequeue : Queue valueT -> Maybe (valueT, Queue valueT)
-dequeue self = case self.front of
-  [] => case self.back of
-    [<] => Nothing
-    xs :< x  => Just $ (x, Q (toList xs) [<])
-  x :: xs => Just (x, { front := xs } self)
-
-
-||| Like System.Concurrency.Channel, but:
+||| This is somewhat manual, since there's no outer Sum type to
+||| decode into. We directly decode the first element of `contents`,
+||| which is where our event type actually lives.
 |||
-||| -- has non-blocking API
-||| -- hold values until dequeued.
+||| XXX: Probably the JSON package has this functionality, but I
+||| didn't want to go down that rabbit hole, so I wrote it manually.
+match : FromJSON a => String -> JSON -> Either String a
+match expected (JObject [
+  ("tag", JString got),
+  ("contents", (JArray [rest]))
+]) =
+  if expected == got
+    then case fromJSON rest of
+      Left err => Left $ show err
+      Right v  => Right v
+    else Left "Incorrect tag"
+match _ _ = Left "Wrong shape"
+
+||| Try each handler in succession until one decodes an event.
+|||
+||| Returns the original handler, with the event partially applied
+||| (which avoids having to mention it in the return type).
 export
-record Fifo valueT where
-  constructor MkFifo
-  mutex    : Mutex
-  queue    : IORef (Queue valueT)
-
-export
-makeFifo : IO (Fifo valueT)
-makeFifo = do
-  mutex  <- makeMutex
-  queue  <- newIORef empty
-  pure $ MkFifo mutex queue
-
-||| Put a value into the fifo.
-|||
-||| This should not block for long, as the queue is unbounded. It may
-||| exhaust memory if the queue isn't being drained.
-export
-put : Fifo valueT -> valueT -> IO ()
-put self value = do
-  mutexAcquire self.mutex
-  modifyIORef self.queue (enqueue value)
-  mutexRelease self.mutex
-
-||| Get the next item from the queue without blocking.
-|||
-||| If the queue is empty, immediately returns Nothing.
-export covering
-get' : Fifo valueT -> IO (Maybe valueT)
-get' self = do
-  mutexAcquire self.mutex
-  q <- readIORef self.queue
-  case dequeue q of
-    Nothing => do
-      mutexRelease self.mutex
-      pure Nothing
-    Just (a, q) => do
-      writeIORef self.queue q
-      mutexRelease self.mutex
-      pure $ Just a
-
-
-||| Decoder state-machine type.
-|||
-||| XXX: I don't like my approach here, it's clunky.
-export
-data EscState state
-  = HaveEsc (SnocList Char) state
-  | Default state
+decodeNext
+  : String
+  -> List (EventSource stateT actionT)
+  -> Either String (stateT -> actionT)
+decodeNext e sources = case parseJSON Virtual e of
+    Left  err => Left "Parse Error: \{show err}"
+    Right parsed => loop parsed sources
+where
+  loop
+    : JSON
+    -> List (EventSource stateT actionT)
+    -> Either String (stateT -> actionT)
+  loop parsed []        = Left "Unhandled event: \{e}"
+  loop parsed (x :: xs) = case match @{x.impl} x.tag parsed of
+      Left  err => loop parsed xs
+      Right evt => Right (x.handler evt)
 
 ||| Abstract key value, decoded from ANSI escape sequence.
 public export
@@ -109,70 +78,123 @@ data Key
   | Escape
 %runElab derive "Key" [Ord, Eq, Show, FromJSON]
 
-||| Track escape sequences for the inner state.
+||| The state machine for escape sequence decoding.
 export
-wrapEsc : state -> EscState state
-wrapEsc = Default
+data EscState stateT
+  = HaveEsc (SnocList Char) stateT
+  | Default stateT
+
+||| Replace the inner state type, according to `f`
+Functor EscState where
+  map f (HaveEsc e s) = HaveEsc e (f s)
+  map f (Default s)   = Default (f s)
+
+||| Wrap the inner state type in an EscState
+export
+wrap : stateT -> EscState stateT
+wrap = Default
 
 ||| Project the wrapped value from the escape sequence state.
 export
-unwrapEsc : EscState state -> state
-unwrapEsc (HaveEsc _ s) = s
-unwrapEsc (Default   s) = s
+unwrap : EscState stateT -> stateT
+unwrap (HaveEsc _ s) = s
+unwrap (Default   s) = s
+
+||| Enter escape state with empty buffer
+export
+accept : Char -> EscState stateT -> EscState stateT
+accept c (HaveEsc e s) = HaveEsc (e :< c) s
+accept c (Default s)   = HaveEsc [< c]    s
+
+||| Exit escape state
+export
+reset : EscState stateT -> EscState stateT
+reset self = Default $ unwrap self
 
 ||| It's handy to be able to `show` the escape state for debugging.
 export
 Show s => Show (EscState s) where
-  show = show . unwrapEsc
+  show = show . unwrap
 
-||| Decode well-known escape sequences into abstract keys.
-|||
-||| In particular, we handle the cursor keys.
-|||
-||| This is just a quick-and-dirty MVP. Just the cursor keys and
-||| escape. No attempt to decode modifiers.
-|||
-||| XXX: do something clever here to make supporting the whole spec
-||| easier.
+||| Response to a receving a character from stdin.
 export
-decodeEsc : SnocList Char -> Maybe (Maybe Key)
-decodeEsc [<]          = Just Nothing
-decodeEsc [< '[']      = Just Nothing
-decodeEsc [< '[', 'C'] = Just $ Just Right
-decodeEsc [< '[', 'D'] = Just $ Just Left
-decodeEsc [< '[', 'A'] = Just $ Just Up
-decodeEsc [< '[', 'B'] = Just $ Just Down
-decodeEsc [< '\ESC']   = Just $ Just Escape
-decodeEsc _            = Nothing
+data Action actionT
+  = Accept Char
+  | Reset
+  | Emit actionT
+
+||| Map the inner action type according to `f`.
+export
+Functor Action where
+  map _ (Accept c) = (Accept c)
+  map _ Reset      = Reset
+  map f (Emit a)   = Emit (f a)
+
+||| Decide what to do for the given character.
+|||
+||| This is just a quick-and-dirty MVP. No attempt to decode
+||| modifiers.
+export
+decode : Char -> EscState stateT -> Action Key
+-- multi-char sequences in this clause
+decode c (HaveEsc esc _) = case esc :< c of
+  [<]                  => Accept c
+  [< '\ESC']           => Accept c
+  [< '\ESC', '\ESC']   => Emit Escape
+  [< '\ESC', '[']      => Accept c
+  [< '\ESC', '[', 'C'] => Emit Right
+  [< '\ESC', '[', 'D'] => Emit Left
+  [< '\ESC', '[', 'A'] => Emit Up
+  [< '\ESC', '[', 'B'] => Emit Down
+  _                    => Reset
+-- single-char matches below here
+decode '\ESC' (Default _) = Accept '\ESC'
+decode '\DEL' (Default _) = Emit Delete
+decode '\n'   (Default _) = Emit Enter
+decode '\t'   (Default _) = Emit Tab
+decode c      (Default _) = Emit (Alpha c)
 
 ||| Interpret console escape sequences as keys.
 |||
+||| @onKey : Translate a key press into the expected action type.
+|||
 ||| Note: this falls down if the user presses the escape key, because
 ||| we can't tell the difference between the key press and the start
-||| of an escape sequence. It'd be better to use ncurses.
+||| of an escape sequence. The user must press escape twice.
 export
-interpretEsc
-  : Monad m
-  =>  (Key -> stateT -> m (Maybe stateT))
+handleEsc
+  : (Key -> stateT -> actionT)
   -> Char
   -> EscState stateT
-  -> m (Maybe (EscState stateT))
-interpretEsc f c (HaveEsc esc s) = case (decodeEsc $ esc :< c) of
-  Just Nothing    => pure $ Just $ HaveEsc (esc :< c) s
-  Just (Just key) => pure $ map Default !(f key s)
-  Nothing         => pure $ Just $ Default s
-interpretEsc f '\ESC' (Default s) = pure $ Just $ HaveEsc [<] s
-interpretEsc f '\DEL' (Default s) = pure $ map Default !(f Delete    s)
-interpretEsc f '\n'   (Default s) = pure $ map Default !(f Enter     s)
-interpretEsc f '\t'   (Default s) = pure $ map Default !(f Tab       s)
-interpretEsc f c      (Default s) = pure $ map Default !(f (Alpha c) s)
+  -> Action actionT
+handleEsc onKey c self = (flip onKey) (unwrap self) <$> decode c self
 
+||| Update the escape state in response to an action.
+|||
+||| @update: Update the inner state in response to an inner action.
 export
-mapEsc
+updateEsc
   :  Monad m
-  => (eventT -> stateT -> m (Maybe stateT))
-  -> eventT
+  => (actionT -> stateT -> m (Either stateT valueT))
+  -> Action actionT
   -> EscState stateT
-  -> m (Maybe (EscState stateT))
-mapEsc handler event (HaveEsc esc s) = pure $ map (HaveEsc esc) !(handler event s)
-mapEsc handler event (Default s)     = pure $ map Default $ !(handler event s)
+  -> m (Either (EscState stateT) valueT)
+updateEsc _      (Accept c)    self = pure $ Left $ accept c self
+updateEsc _      Reset         self = pure $ Left $ reset self
+updateEsc update (Emit action) self = case !(update action (unwrap self)) of
+  Left  state => pure $ Left $ const state <$> self
+  Right value => pure $ Right value
+
+||| Lift an event source to an EscState event source.
+export
+liftEsc
+  :  EventSource stateT actionT
+  -> EventSource (EscState stateT) (Action actionT)
+liftEsc = { handler $= wrapHandler }
+  where
+    wrapHandler
+      : (eventT -> stateT -> actionT)
+      -> eventT
+      -> EscState stateT
+      -> Action actionT
+    wrapHandler original event state = Emit $ original event $ unwrap state

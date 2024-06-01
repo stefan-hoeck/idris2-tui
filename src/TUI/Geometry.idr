@@ -192,7 +192,6 @@ namespace Rect
     in
       (left , right)
 
-
   ||| Split vertically at `h` and return the pieces
   export
   vsplit : Rect -> Nat -> (Rect, Rect)

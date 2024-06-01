@@ -1,11 +1,11 @@
 ||| COmmon logic for views which contain and manage subviews.
 |||
 ||| The definitions in this module abstract over common UX patterns.
-module TUI.View.Container
-
+module TUI.Component.Container
 
 import Data.List1
 import Data.Maybe
+import TUI.Component
 import TUI.Geometry
 import TUI.Painting
 import TUI.View
@@ -16,24 +16,23 @@ import public Zipper
 %default total
 
 
-||| Extends application-level action with container
-public export
-data Action actionT
-  = FocusNext
-  | FocusPrev
-  | Focus Nat
-  | Lift actionT
+{-
+Controller itemT (Action actionT) => Controller (Zipper 
 
 ||| This is an interface that container items must satisfy.
 public export
 0 Item : Type -> Type -> Type
-Item itemT actionT = View itemT (Action actionT)
+Item itemT actionT = Component itemT (Container.Action actionT)
 
 ||| A container handles keyboard focus and navigation for its subviews.
 public export
 0 Container : Type -> Type
 Container itemT = Zipper itemT
 
+Controller (Container actionT) actionT where
+  
+
+{-
 ||| Update the focused item in response to the given input event.
 |||
 ||| @key    : the event to handle.

@@ -14,20 +14,52 @@ import public TUI.Painting
 %default total
 
 
-||| A view is a high-level UI component.
+namespace State
+  ||| The high-level drawing state for views.
+  |||
+  ||| This is used by the `paint` method to provide appropriate
+  ||| feedback.
+  public export
+  data State = Normal | Focused | Disabled
+
+  ||| Demote the `Focused` state to the `Normal` state.
+  |||
+  ||| This is useful for rendering unfocused sibling components within
+  ||| a container.
+  public export
+  demoteFocused : State -> State
+  demoteFocused Focused = Normal
+  demoteFocused x       = x
+
+  ||| Default styles for rendering text
+  export
+  styleForState : State -> IO ()
+  styleForState Normal   = sgr [Reset]
+  styleForState Focused  = reverseVideo
+  styleForState Disabled = sgr [SetStyle Faint]
+
+  ||| Paint with the appropriate style for the given state.
+  |||
+  ||| Completely resets the graphics context after painting.
+  export
+  withState : State -> IO () -> IO ()
+  withState state wrapped = do
+    styleForState state
+    wrapped
+    sgr [Reset]
+
+||| A View can paint itself to the screen in 2D.
 |||
-||| - It wraps an inner value, its state.
+||| - It has a drawing state: Focused, Unfocused, or Disabled.
 ||| - It knows how to size itself, for layout purposes.
-||| - It can draw itself to the screen
-||| - It can update its state in response to events.
+||| - It can draw itself to the screen, using a window.
 public export
-interface View stateT where
-  constructor MkView
+interface View selfT where
   ||| Calculate the "requested" size
-  size  : stateT -> Area
+  size  : selfT -> Area
 
   ||| Draw the view into the given screen rectangle.
-  paint : State -> Rect -> stateT -> IO ()
+  paint : State -> Rect -> selfT -> IO ()
 
 ||| Implement `View` for `()` as a no-op
 export
@@ -35,21 +67,11 @@ View () where
   size  _     = MkArea 0 0
   paint _ _ _ = pure ()
 
-||| Any type implementing `Show` is automatically a (non-interative)
-||| view.
+||| Any type implementing `Show` can be painted.
 export
 Show a => View a where
   size s = MkArea (length (show s)) 1
   paint state r s = withState state $ showTextAt r.nw (show s)
-
-||| In implementing `View` for all `Show` types, we have
-||| inadvertently made it ambigious what to do when we use a string
-||| as a view. This alternative, named implementation draws the
-||| string directly to the screen.
-export
-[string] View String where
-  size s = MkArea (length s) 1
-  paint state r self = withState state $ showTextAt r.nw self
 
 ||| Implement View for `maybe` of any view.
 |||
