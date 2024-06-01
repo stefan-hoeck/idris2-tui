@@ -197,7 +197,7 @@ namespace TUI
   ||| True if the container has the given barcode.
   hasBarcode : Barcode -> Container -> Bool
   hasBarcode bc self = bc == self.barcode
-
+{-
   View Container () where
     -- size here is just a guess, but it should be a fixed grid
     -- up to 13 chars for the barcode, plus padding

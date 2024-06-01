@@ -148,7 +148,7 @@ namespace InputShim
   ||| Use this entry point when you want to use the MVC abstractions.
   |||
   ||| @ sources   any additional event sources beyond keyboard input.
-  ||| @ onAction  isolate your side-effecting operations here
+  ||| @ onAction  a function to run your side-effecting operations here
   ||| @ init      the initial component state.
   covering export
   runComponent
@@ -156,7 +156,7 @@ namespace InputShim
     => (sources : List (EventSource stateT actionT))
     -> (onAction : actionT -> stateT -> Effect)
     -> stateT
-    -> IO (Maybe valueT)
+    -> IO valueT
   runComponent sources onAction init =
     runTUI
       Component.handle
@@ -170,9 +170,9 @@ namespace InputShim
       ||| We calculuate the next state, then run any IO actions
       ||| specified by `onAction`.
       handleEffects
-        :  Response (Maybe valueT) actionT
+        :  Response valueT actionT
         -> stateT
-        -> IO (Either stateT (Maybe valueT))
+        -> IO (Either stateT valueT)
       handleEffects response self = do
         let next = Component.update response self
         case response of

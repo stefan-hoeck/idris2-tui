@@ -40,13 +40,13 @@ liftSource source = Do <$> source
 ||| Handle updates on a wrapped Response
 export
 liftUpdate
-  :  Model stateT valueT actionT
-  => Response valueT actionT
+  :  {auto impl : Model stateT valueT actionT}
+  -> Response (Maybe valueT) actionT
   -> stateT
-  -> Either stateT valueT
+  -> Either stateT (Maybe valueT)
 liftUpdate Ignore      self = Left self
 liftUpdate (Yield x)   _    = Right x
-liftUpdate (Do action) self = update action self
+liftUpdate (Do action) self = Just <$> update @{impl} action self
 
 ||| Default component implementation
 |||
@@ -54,12 +54,18 @@ liftUpdate (Do action) self = update action self
 ||| Controller are already implemented for `stateT`.
 |||
 ||| You are free to define more specialized implementations.
+|||
+||| The inner action is wrapped in `Response`. This makes `Ignore`,
+||| `Yield`, and `Do` available for implementations.
+|||
+||| The value type is wrapped in `Maybe`, allowing implementations to
+||| signal that a value is unavailable.
 export
 implementation
      Model stateT valueT actionT
   => View stateT
-  => Controller stateT (Response valueT actionT)
-  => Component  stateT valueT actionT
+  => Controller stateT (Response (Maybe valueT) actionT)
+  => Component  stateT (Maybe valueT) actionT
 where
    size = View.size
    paint = View.paint

@@ -135,8 +135,12 @@ ignoreEffects _ _ = Update
 
 
 partial export
-gallery : IO String
-gallery = runComponent [] ignoreEffects testMenu
+gallery : IO ()
+gallery = do
+  let result : Maybe String = !(runComponent [] ignoreEffects testMenu)
+  case result of
+    Nothing => putStrLn "User Canceled"
+    Just choice => putStrLn $ "User selected: \{show choice}"
 
 {-
 ||| Demonstrate all the widgets, as they are implemented.

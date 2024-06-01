@@ -21,6 +21,7 @@ import queue
 import sys
 import termios
 import threading
+import time
 import tty
 
 
@@ -55,10 +56,15 @@ def readScale(path, q):
       q.put({"tag": "Scale", "contents": [list(packet)]})
 
 def readStdin(q):
+    fd = sys.stdin.fileno()
+    os.set_blocking(fd, False)
     while True:
-        char = os.read(sys.stdin.fileno(), 1)
-        q.put({"tag": "Stdin", "contents": [chr(ord(char))]})
-
+        try:
+            match os.read(fd, 1):
+                case None: time.sleep(1/32)
+                case char: q.put({"tag": "Stdin", "contents": [chr(ord(char))]})
+        except BlockingIOError:
+            time.sleep(1/32)
 try:
     save = tty.setcbreak(sys.stdin.fileno())
     q = queue.Queue()
@@ -82,10 +88,16 @@ try:
     stdinThread.start()
     serverThread.start()
     while True:
-        json.dump(q.get(), sys.stdout)
-        print("")
-        sys.stdout.flush()
+        try:
+            json.dump(q.get(timeout=1), sys.stdout)
+            print("")
+            sys.stdout.flush()
+        except queue.Empty:
+            pass
+except (BrokenPipeError, IOError):
+    pass
 except KeyboardInterrupt:
     pass
 finally:
+    sys.stderr.close()
     termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, save)
