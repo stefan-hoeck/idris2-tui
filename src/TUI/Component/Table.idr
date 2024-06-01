@@ -3,7 +3,7 @@
 ||| Editable tabular data.
 |||
 ||| Each row must have the same set of columns.
-module TUI.View.Table
+module TUI.Component.Table
 
 
 import Data.Fin
@@ -18,6 +18,7 @@ import Zipper
 %default total
 
 
+{-
 data Mode
   = Default
   | EditCell

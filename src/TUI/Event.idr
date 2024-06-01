@@ -22,6 +22,14 @@ record EventSource stateT actionT where
   {auto impl  : FromJSON eventT}
   handler     : eventT -> stateT -> actionT
 
+||| Mapping an event source applies `f` to the yielded action.
+export
+Functor (EventSource stateT) where
+  map f self = { handler := wrapInner } self
+    where
+      wrapInner : self.eventT -> stateT -> b
+      wrapInner event state = f $ self.handler event state
+
 ||| Decode the top-level record in the given JSON.
 |||
 ||| This is somewhat manual, since there's no outer Sum type to
@@ -62,7 +70,7 @@ where
   loop parsed []        = Left "Unhandled event: \{e}"
   loop parsed (x :: xs) = case match @{x.impl} x.tag parsed of
       Left  err => loop parsed xs
-      Right evt => Right (x.handler evt)
+      Right evt => Right $ x.handler evt
 
 ||| Abstract key value, decoded from ANSI escape sequence.
 public export
@@ -119,9 +127,9 @@ Show s => Show (EscState s) where
 ||| Response to a receving a character from stdin.
 export
 data Action actionT
-  = Accept Char
-  | Reset
-  | Emit actionT
+  = Accept Char   -- accept escaped character.
+  | Reset         -- discard any existing escaped characters.
+  | Emit actionT  -- emit the action resulting from the key press.
 
 ||| Map the inner action type according to `f`.
 export
@@ -154,16 +162,12 @@ decode '\n'   (Default _) = Emit Enter
 decode '\t'   (Default _) = Emit Tab
 decode c      (Default _) = Emit (Alpha c)
 
-||| Interpret console escape sequences as keys.
+||| Convert raw characters into high-level actions.
 |||
-||| @onKey : Translate a key press into the expected action type.
-|||
-||| Note: this falls down if the user presses the escape key, because
-||| we can't tell the difference between the key press and the start
-||| of an escape sequence. The user must press escape twice.
+||| @ onKey : Converts a Key to an action.
 export
 handleEsc
-  : (Key -> stateT -> actionT)
+  : (onKey : Key -> stateT -> actionT)
   -> Char
   -> EscState stateT
   -> Action actionT
@@ -175,14 +179,14 @@ handleEsc onKey c self = (flip onKey) (unwrap self) <$> decode c self
 export
 updateEsc
   :  Monad m
-  => (actionT -> stateT -> m (Either stateT valueT))
+  => (update : actionT -> stateT -> m (Either stateT valueT))
   -> Action actionT
   -> EscState stateT
   -> m (Either (EscState stateT) valueT)
 updateEsc _      (Accept c)    self = pure $ Left $ accept c self
 updateEsc _      Reset         self = pure $ Left $ reset self
 updateEsc update (Emit action) self = case !(update action (unwrap self)) of
-  Left  state => pure $ Left $ const state <$> self
+  Left  state => pure $ Left $ Default state
   Right value => pure $ Right value
 
 ||| Lift an event source to an EscState event source.
@@ -193,8 +197,8 @@ liftEsc
 liftEsc = { handler $= wrapHandler }
   where
     wrapHandler
-      : (eventT -> stateT -> actionT)
-      -> eventT
+      : (e -> stateT -> actionT)
+      -> e
       -> EscState stateT
-      -> Action actionT
-    wrapHandler original event state = Emit $ original event $ unwrap state
+      -> (Action actionT)
+    wrapHandler original event state = Emit $ original event (unwrap state)

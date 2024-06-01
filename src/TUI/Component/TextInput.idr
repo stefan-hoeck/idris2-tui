@@ -36,55 +36,56 @@ toString self = pack $ toList self.chars
 
 namespace Model
 
+  public export
   data Action
-    = Ignore
-    | Accept
-    | Cancel
-    | Delete
+    = Delete
     | GoLeft
     | GoRight
     | Insert Char
 
+  export
   Model TextInput (Maybe String) Model.Action where
-    update Ignore     self = Left self
-    update Accept     self = Right $ Just $ toString self
-    update Cancel     self = Right Nothing
     update Delete     self = Left $ { chars $= delete  } self
     update GoLeft     self = Left $ { chars $= goLeft  } self
     update GoRight    self = Left $ { chars $= goRight } self
     update (Insert c) self = Left $ { chars $= insert c} self
 
-{-
-||| Implement View for TextInput
-export
-View (TextInput actionT) actionT where
-  -- Size is the sum of left and right halves
-  size self = MkArea (length self.chars) 1
+namespace View
 
-  -- when un-focused, just show the string value.
-  paint Normal rect self = do
-    showTextAt rect.nw (toString self)
-  -- when disabled, show a faint string
-  paint Disabled rect self = do
-    sgr [SetStyle Faint]
-    showTextAt rect.nw (toString self)
-    sgr [Reset]
-  -- when focused, show the cursor position in the string.
-  paint Focused rect self = do
-    moveTo rect.nw
-    putStr $ kcap $ self.chars.left
-    reverseVideo
-    putStr $ case self.chars.right of
-      [] => " "
-      x :: _ => singleton x
-    unreverseVideo
-    putStr $ pack $ tail self.chars.right
+  ||| Implement View for TextInput
+  export
+  View TextInput where
+    -- Size is the sum of left and right halves
+    size self = MkArea (length self.chars) 1
 
-  -- map keys to their obvious functions.
-  handle Left      self = Update $ { chars $= goLeft  } self
-  handle Right     self = Update $ { chars $= goRight } self
-  handle Delete    self = Update $ { chars $= delete  } self
-  handle (Alpha c) self = Update $ { chars $= insert c} self
-  handle Enter     self = Do self.onChange
-  handle Escape    self = Exit
-  handle _         self = Update self
+    -- when un-focused, just show the string value.
+    paint Normal rect self = do
+      showTextAt rect.nw (toString self)
+    -- when disabled, show a faint string
+    paint Disabled rect self = do
+      sgr [SetStyle Faint]
+      showTextAt rect.nw (toString self)
+      sgr [Reset]
+    -- when focused, show the cursor position in the string.
+    paint Focused rect self = do
+      moveTo rect.nw
+      putStr $ kcap $ self.chars.left
+      reverseVideo
+      putStr $ case self.chars.right of
+        [] => " "
+        x :: _ => singleton x
+      unreverseVideo
+      putStr $ pack $ tail self.chars.right
+
+namespace Controller
+
+  ||| This controller implements basic single-line text input.
+  Controller TextInput (Response (Maybe String) Model.Action) where
+        -- map keys to their obvious functions.
+    handle Left      self = Do GoLeft
+    handle Right     self = Do GoRight
+    handle Delete    self = Do Delete
+    handle (Alpha c) self = Do $ Insert c
+    handle Enter     self = Yield $ Just $ toString self
+    handle Escape    self = Yield Nothing
+    handle _         self = Ignore

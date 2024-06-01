@@ -125,10 +125,7 @@ namespace Model
 
   public export
   data Action
-    = Ignore
-    | Accept
-    | Cancel
-    | Clear
+    = Clear
     | Negate
     | Insert Input
 
@@ -137,9 +134,6 @@ namespace Model
        ToValue a
     => Model (Numeric a) (Maybe a) Model.Action
   where
-    update Ignore self     = Left  $ self
-    update Accept self     = Right $ self.value
-    update Cancel self     = Right Nothing
     update Clear  self     = Left  $ clear  self
     update Negate self     = Left  $ negate self
     update (Insert i) self = Left  $ insert i self
@@ -165,24 +159,26 @@ namespace Controller
 
   ||| Event handling common to all variants.
   handleCommon
-    : Key
+    :  ToValue a
+    => Key
     -> (Char -> Maybe Input)
-    -> Model.Action
-  handleCommon (Alpha char) f = fromMaybe Ignore $ Insert <$> f char
-  handleCommon Delete       _ = Clear
-  handleCommon Left         _ = Cancel
-  handleCommon Enter        _ = Accept
-  handleCommon Escape       _ = Cancel
-  handleCommon _            _ = Ignore
+    -> Numeric a
+    -> Response (Maybe a) Model.Action
+  handleCommon (Alpha char) f self = fromMaybe Ignore $ (Do . Insert) <$> f char
+  handleCommon Delete       _ self = Do Clear
+  handleCommon Left         _ self = Yield Nothing
+  handleCommon Enter        _ self = Yield self.value
+  handleCommon Escape       _ self = Yield Nothing
+  handleCommon _            _ self = Ignore
 
   ||| This controller doesn't accept decimal or negation
-  Controller (Numeric Nat) Model.Action where
-    handle key _ = handleCommon key $ (map Digit) . charToDigit
+  Controller (Numeric Nat) (Response (Maybe Nat) Model.Action) where
+    handle key self = handleCommon key ((map Digit) . charToDigit) self
 
   ||| This implementation ignores decimals, but handles the minus sign.
   export
-  Controller (Numeric Integer) Model.Action where
-    handle key _ = handleCommon key special
+  Controller (Numeric Integer) (Response (Maybe Integer) Model.Action) where
+    handle key self = handleCommon key special self
       where
         special : Char -> Maybe Input
         special '-' = Just Minus
@@ -190,8 +186,8 @@ namespace Controller
 
   ||| This implementation handles both decimal and minus sign.
   export
-  Controller (Numeric Double) Model.Action where
-    handle key _ = handleCommon key special
+  Controller (Numeric Double) (Response (Maybe Double) Model.Action) where
+    handle key self = handleCommon key special self
       where
         special : Char -> Maybe Input
         special '-' = Just Minus

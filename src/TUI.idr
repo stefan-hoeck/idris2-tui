@@ -83,7 +83,6 @@ import public TUI.MainLoop
 import public TUI.Painting
 import public TUI.View
 
-{-
 
 %default total
 %language ElabReflection
@@ -91,8 +90,10 @@ import public TUI.View
 
 ||| A simple menu, useful for testing.
 export
-testMenu : Menu String ()
-testMenu = menu () ["foo", "bar", "baz"]
+testMenu : Exclusive String
+testMenu = menu ["foo", "bar", "baz"]
+
+{-
 
 export
 testDynamic : Dynamic ()
@@ -126,11 +127,16 @@ testForm = form [
   field "Text Input" $ TextInput.fromString "test",
   field "Test"       $ TextInput.fromString "test"
 ]
+-}
+
+
+ignoreEffects : Menu.Model.Action -> Exclusive String -> Effect
+ignoreEffects _ _ = Update
+
 
 partial export
-gallery : IO ()
--- gallery = ignore $ runView (const pure) [] TUI.test
-gallery = ignore $ runView (const pure) [] testForm
+gallery : IO String
+gallery = runComponent [] ignoreEffects testMenu
 
 {-
 ||| Demonstrate all the widgets, as they are implemented.

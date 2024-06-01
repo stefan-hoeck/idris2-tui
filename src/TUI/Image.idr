@@ -1,8 +1,8 @@
-module Image
+module TUI.Image
 
 
 import System
-import TUI.Geometery
+import TUI.Geometry
 import TUI.Painting
 import TUI.View
 
@@ -10,7 +10,7 @@ import TUI.View
 %default total
 
 
-||| An abstracct image.
+||| An abstract image.
 |||
 ||| calling `putImage` will draw it to the screen at the current
 ||| cursor position.

@@ -129,20 +129,19 @@ namespace InputShim
     -> (update  : actionT -> stateT -> IO (Either stateT valueT))
     -> (init    : stateT)
     -> IO valueT
-  runTUI onKey sources render update init = do
-    ret <- runRaw
+  runTUI onKey sources render update init =
+    runRaw
       (On "Stdin" (handleEsc onKey) :: (liftEsc <$> sources))
       (render . unwrap)
       (updateEsc update)
       (wrap init)
-    pure ret
 
   ||| Top-level event handling result
   |||
   ||| @Update Update the current state
-  ||| @Do     Perform the given side effect.
+  ||| @Run    Perform the given side effect.
   public export
-  data Effect = Update | Do (IO ())
+  data Effect = Update | Run (IO ())
 
   ||| Run a top-level application component.
   |||
@@ -157,19 +156,30 @@ namespace InputShim
     => (sources : List (EventSource stateT actionT))
     -> (onAction : actionT -> stateT -> Effect)
     -> stateT
-    -> IO valueT
-  runComponent sources onAction init = do
+    -> IO (Maybe valueT)
+  runComponent sources onAction init =
     runTUI
       Component.handle
-      sources
+      (liftSource <$> sources)
       (Component.paint Focused !(screen))
-      wrapUpdate
+      handleEffects
       init
     where
+      ||| Lift `Component.update` into IO.
       |||
-      wrapUpdate : actionT -> stateT -> IO (Either stateT valueT)
-      wrapUpdate action state = case onAction action state of
-        Update => pure $ update action state
-        Do effect => do
-          effect
-          pure $ update action state
+      ||| We calculuate the next state, then run any IO actions
+      ||| specified by `onAction`.
+      handleEffects
+        :  Response (Maybe valueT) actionT
+        -> stateT
+        -> IO (Either stateT (Maybe valueT))
+      handleEffects response self = do
+        let next = Component.update response self
+        case response of
+          Ignore        => pure $ Left self
+          (Yield value) => pure $ Right value
+          (Do action)   => case onAction action self of
+            Update => pure $ next
+            Run effect => do
+              effect
+              pure $ next
