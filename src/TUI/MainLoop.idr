@@ -117,7 +117,7 @@ namespace InputShim
         Left  state => loop state
         Right value => pure value
 
-  ||| Run a raw TUI application, decoding input escape sequences.
+  ||| Run a TUI application, decoding input escape sequences.
   |||
   ||| Use this function if you want escape sequence decoding, but do not
   ||| want to use the MVC abstractions.
@@ -136,16 +136,49 @@ namespace InputShim
       (updateEsc update)
       (wrap init)
 
-  ||| Top-level event handling result
+
+namespace MVC
+  ||| Return type for `onAction` (see below).
   |||
-  ||| @Update Update the current state
-  ||| @Run    Perform the given side effect.
+  ||| @Update Allow the model to update the state.
+  ||| @Run    Run the given IO action on the current state.
   public export
-  data Effect = Update | Run (IO ())
+  data Effect stateT = Update | Run (IO stateT)
+
+  ||| A convenience function for when an application has no effects.
+  public export
+  updateOnly : actionT -> stateT -> Effect stateT
+  updateOnly _ _ = Update
+
+  ||| Run a top-level MVC statck.
+  |||
+  ||| Use this entry point if you to want MVC abstractions but do not
+  ||| want to use the component abstraction.
+  covering export
+  runMVC
+    :  Model stateT valueT actionT
+    => {auto viewImpl : View stateT}
+    -> Controller stateT actionT
+    => (sources : List (EventSource stateT actionT))
+    -> (onAction : actionT -> stateT -> Effect stateT)
+    -> stateT
+    -> IO valueT
+  runMVC sources onAction init =
+    runTUI
+      Controller.handle
+      sources
+      (View.paint Focused !(screen))
+      handleEffects
+      init
+  where
+    handleEffects : actionT -> stateT -> IO (Either stateT valueT)
+    handleEffects action state = case onAction action state of
+      Update     => pure $ Model.update action state
+      Run effect => pure $ Model.update action !effect
 
   ||| Run a top-level application component.
   |||
-  ||| Use this entry point when you want to use the MVC abstractions.
+  ||| Use this entry point when you want to use the component abstraction.
   |||
   ||| @ sources   any additional event sources beyond keyboard input.
   ||| @ onAction  a function to run your side-effecting operations here
@@ -153,33 +186,17 @@ namespace InputShim
   covering export
   runComponent
     :  Component stateT valueT actionT
-    => (sources : List (EventSource stateT actionT))
-    -> (onAction : actionT -> stateT -> Effect)
+    => (sources : List (EventSource stateT (Response valueT actionT)))
+    -> (onAction : actionT -> stateT -> Effect stateT)
     -> stateT
-    -> IO valueT
+    -> IO (Maybe valueT)
   runComponent sources onAction init =
-    runTUI
-      Component.handle
-      (liftSource <$> sources)
-      (Component.paint Focused !(screen))
-      handleEffects
+    runMVC {viewImpl = componentViewImpl} -- XXX: why do I need this?
+      sources
+      liftAction
       init
     where
-      ||| Lift `Component.update` into IO.
-      |||
-      ||| We calculuate the next state, then run any IO actions
-      ||| specified by `onAction`.
-      handleEffects
-        :  Response valueT actionT
-        -> stateT
-        -> IO (Either stateT valueT)
-      handleEffects response self = do
-        let next = Component.update response self
-        case response of
-          Ignore        => pure $ Left self
-          (Yield value) => pure $ Right value
-          (Do action)   => case onAction action self of
-            Update => pure $ next
-            Run effect => do
-              effect
-              pure $ next
+      liftAction : Response valueT actionT -> stateT -> Effect stateT
+      liftAction Ignore      _     = Update
+      liftAction (Yield x)   _     = Update
+      liftAction (Do action) state = onAction action state

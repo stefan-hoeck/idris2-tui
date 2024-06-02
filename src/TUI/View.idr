@@ -55,6 +55,7 @@ namespace State
 ||| - It can draw itself to the screen, using a window.
 public export
 interface View selfT where
+  constructor MkView
   ||| Calculate the "requested" size
   size  : selfT -> Area
 
@@ -66,6 +67,11 @@ export
 View () where
   size  _     = MkArea 0 0
   paint _ _ _ = pure ()
+
+export
+[string] View String where
+  size self = MkArea (length self) 1
+  paint state window self = withState state $ showTextAt window.nw self
 
 ||| Any type implementing `Show` can be painted.
 export

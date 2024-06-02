@@ -15,6 +15,14 @@ import Util
 
 %default total
 
+
+||| Actions valid on a choice object.
+public export
+data Action : Type where
+  Prev   :        Action
+  Next   :        Action
+  Choose : Nat -> Action
+
 ||| Represents an exclusive choice
 export
 record Exclusive itemT where
@@ -45,81 +53,41 @@ choose
   -> Exclusive itemT
 choose self c = { choice := c } self
 
-||| Model implementation for view
-namespace Model
+||| Show the most appropriate indicator for the current choice.
+|||
+||| - 0     : down arrow
+||| - last  : the up arrow
+||| - other : the up-down arrow.
+arrowForIndex : {k : Nat} -> (Fin k) -> String
+arrowForIndex FZ     = arrow Down
+arrowForIndex (FS n) = if FS n == last
+  then arrow Up
+  else arrow UpDown
 
-  ||| Actions valid on a choice object.
-  |||
-  ||| We could implement other actions, like filtering the set of
-  ||| choices.
-  public export
-  data Action : Type where
-    Prev   :        Action
-    Next   :        Action
-    Choose : Nat -> Action
+export
+View itemT => Component (Exclusive itemT) itemT Action where
+  update Prev       self = Left $ prev self
+  update Next       self = Left $ next self
+  update (Choose i) self = case natToFin i (length self.choices) of
+    Just i => Left $ choose self i
+    -- if the index is invalid, leave unchanged.
+    Nothing => Left $ self
 
-  ||| Implement model for a leaf choice
-  export
-  Model (Exclusive itemT) itemT Action where
-    update Prev       self = Left $ prev self
-    update Next       self = Left $ next self
-    update (Choose i) self = case natToFin i (length self.choices) of
-      Just i => Left $ choose self i
-      -- if the index is invalid, leave unchanged.
-      Nothing => Left $ self
+  size self =
+    let sizes   := View.size <$> self.choices
+        content := foldl Area.union (MkArea 0 0) sizes
+    in (MkArea 2 0) + content
 
-namespace View
-  ||| Show the arrow indicator most appropriate for the given as a
-  ||| hint to the user which keys will be effective.
-  |||
-  ||| - 0     : down arrow
-  ||| - last  : the up arrow
-  ||| - other : the up-down arrow.
-  arrowForIndex : {k : Nat} -> (Fin k) -> String
-  arrowForIndex FZ     = arrow Down
-  arrowForIndex (FS n) = if FS n == last
-    then arrow Up
-    else arrow UpDown
+  paint state window self = do
+    withState state $ showTextAt window.nw (arrowForIndex self.choice)
+    paint state (window.shiftRight 2) self.selected
 
-  ||| Render a choice as a single list of items.
-  export
-  View itemT => View (Exclusive itemT) where
-    size self = (MkArea 2 0) + (foldl Area.union (MkArea 0 0) $ size <$> self.choices)
-    paint state window self = do
-      withState state $ showTextAt window.nw (arrowForIndex self.choice)
-      paint state (window.shiftRight 2) self.selected
-
-{-
-  ||| Render a choice as a vertical list of items.
-  export
-  [Vertical] {n : Nat} -> View itemT => View (Exclusive itemT) where
-    size self = foldl Area.hunion (MkArea 0 0) $ size <$> self.choices
-    paint state window self = loop self.choice window self.choices
-      where
-        adjustState : Fin (length self.choices) -> State -> State
-        adjustState i Focused = case self.choice of
-          Nothing     => Normal
-          Just choice => if (i == choice) then Focused else Normal
-        adjustState _ state = state
-
-        loop : Fin (length self.choices) -> Rect -> List itemT -> IO ()
-        loop i window [] = pure ()
-        loop i window (x :: xs) = do
-          window <- packTop (adjustState i state) window x
-          loop (finS i) window xs
--}
-
-namespace Controller
-
-  ||| Provides basic selection of items via the arrow keys.
-  export
-  Controller (Exclusive itemT) (Response (Maybe itemT) Action) where
-    handle Up     self = Do     Prev
-    handle Down   self = Do     Next
-    handle Left   self = Yield  Nothing
-    handle Escape self = Yield  Nothing
-    handle Enter  self = Yield  $ Just self.selected
-    handle _      _    = Ignore
+  handle Up     self = Do     Prev
+  handle Down   self = Do     Next
+  handle Left   self = Yield  Nothing
+  handle Escape self = Yield  Nothing
+  handle Enter  self = Yield  $ Just self.selected
+  handle _      _    = Ignore
 
 ||| Create an exclusive choice component from a non-empty list of choices.
 export
@@ -129,5 +97,3 @@ menu
   -> {auto 0 prf : IsJust (natToFin 0 (length choices))}
   -> Exclusive itemT
 menu choices = MkChoice choices $ fromJust $ natToFin 0 (length choices)
-
-

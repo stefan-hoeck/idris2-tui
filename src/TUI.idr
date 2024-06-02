@@ -130,14 +130,10 @@ testForm = form [
 -}
 
 
-ignoreEffects : Menu.Model.Action -> Exclusive String -> Effect
-ignoreEffects _ _ = Update
-
-
 partial export
 gallery : IO ()
 gallery = do
-  let result : Maybe String = !(runComponent [] ignoreEffects testMenu)
+  let result : Maybe String = !(runComponent [] updateOnly testMenu)
   case result of
     Nothing => putStrLn "User Canceled"
     Just choice => putStrLn $ "User selected: \{show choice}"

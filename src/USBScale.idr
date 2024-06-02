@@ -154,10 +154,11 @@ spawn : String -> (Result -> IO Builtin.Unit) -> IO ThreadID
 spawn path post = fork (run post path)
 
 
+{-
 ||| All the stuff for the fullscreen terminal front-end lives here
 |||
 ||| XXX: make this prettier
-namespace TUI
+namespace Model
   %hide Measures.Unit
   %hide Prelude.(-)
 
@@ -197,8 +198,8 @@ namespace TUI
   ||| True if the container has the given barcode.
   hasBarcode : Barcode -> Container -> Bool
   hasBarcode bc self = bc == self.barcode
-{-
-  View Container () where
+
+  View Container where
     -- size here is just a guess, but it should be a fixed grid
     -- up to 13 chars for the barcode, plus padding
     -- 10 digits each for gross, tear, and net
@@ -212,10 +213,6 @@ namespace TUI
       paint state tear    self.tear
       paint state gross   self.gross
       paint state net     self.net
-
-  ||| These actions correspond to the container methods above
-  ||| But are handled in the parent view
-  data Action = Tear | Store | Reset | Select
 
   ||| An MVP of my "Smart Scale" concept
   |||
@@ -245,8 +242,20 @@ namespace TUI
     constructor MkSmartScale
     containers : Zipper Container
     scale      : Result
-    barcode    : Maybe (TextInput Action)
+    barcode    : Maybe TextInput
     image      : String
+
+  ||| These actions correspond to the container methods above
+  ||| But are handled in the parent view
+  data Action
+    = Prev
+    | Next
+    | Tear  Result
+    | Store Result
+    | Reset
+    | Select
+    | OnScale Result
+    | OnImage String
 
   ||| Update the selected container by the application of `f`
   update : (Container -> Container) -> SmartScale -> SmartScale
@@ -265,27 +274,21 @@ namespace TUI
       barcode := Nothing
     } self
 
-  ||| Handles events when the barcode input is not active
-  |||
-  ||| Receiving a '*' will give focus to the barcode input.
-  handleDefault : Key -> SmartScale -> Response SmartScale Action
-  handleDefault (Alpha 'q') _    = Exit
-  handleDefault (Alpha 't') self = Do Tear
-  handleDefault (Alpha 's') self = Do Store
-  handleDefault (Alpha 'r') self = Do Reset
-  handleDefault (Alpha _)   self = Update self
-  handleDefault Left        self = Update self
-  handleDefault Right       self = Update self
-  handleDefault Up          self = Update $ { containers $= goLeft }  self
-  handleDefault Down        self = Update $ { containers $= goRight } self
-  handleDefault Delete      self = Do Tear
-  handleDefault Enter       self = Do Store
-  handleDefault Tab         self = Update $ { containers $= goRight }  self
-  handleDefault Escape      self = Do Reset
+  Model SmartScale () TUI.Action where
+    update Prev self = Left $ { containers $= goLeft }  self
+    update Next self = Left $ { containers $= goRight } self
+    update (Tear result) self = Left $ update (withWeight result tear) self
+    update (Store result) self = Left $ update (withWeight result store) self
+    update Reset self = Left $ update reset self
+    update Select self = Left $ select self
+    update (OnScale result) self = Left $ { scale := result } self
+    update (OnImage sixel) self = Left $ { image := sixel } self
+
+namespace View
 
   ||| view implementation for smart scale
   export
-  View SmartScale Action where
+  View SmartScale where
     size self = MkArea 23 (length self.containers + 4)
     paint state window self = do
       let (top, bottom) = vdivide window 3
@@ -304,8 +307,48 @@ namespace TUI
           paint @{string} Focused bottom "Barcode      Tear      Gross     Net "
         xs => do
           bottom <- packTop @{string} Normal bottom "Barcode      Tear      Gross     Net "
-          ignore $ paintVertical state bottom self.containers
+          ignore $ paint @{vertical} state bottom self.containers
 
+namespace Controller
+  ||| Handles events when the barcode input is not active
+  |||
+  ||| Receiving a '*' will give focus to the barcode input.
+  handleDefault : Key -> SmartScale -> Response (Maybe ()) TUI.Action
+  handleDefault (Alpha 'q') self = Yield Nothing
+  handleDefault (Alpha 't') self = withWeight case self.scale of
+    Do Tear
+  handleDefault (Alpha 's') self = Do Store
+  handleDefault (Alpha 'r') self = Do Reset
+  handleDefault (Alpha _)   self = Ignore
+  handleDefault Left        self = Ignore
+  handleDefault Right       self = Ignore
+  handleDefault Up          self = Do Next
+  handleDefault Down        self = Do Prev
+  handleDefault Delete      self = Do Tear
+  handleDefault Enter       self = Do Store
+  handleDefault Tab         self = Do Next
+  handleDefault Escape      self = Yield Nothing
+
+
+  ||| Update the current scale value when we receive a new packet.
+  export
+  onScale : List Bits8 -> SmartScale -> IO SmartScale
+  onScale result self = do
+    pure $ Left $ {scale := decode result} self
+
+  ||| Render the given image path in sixel format when we receive an image event.
+  |||
+  ||| One issue here is that we have don't have access to the window
+  ||| here, so we have to choose a fixed image size to render to. But
+  ||| apparently it's important not call out to a subprocess while
+  ||| rendering.
+  onImage : String -> SmartScale -> IO SmartScale
+  onImage path self = do
+    (sixel, code) <- assert_total $ run ["chafa", "-s", "20", "upload/decoded.0"]
+    pure $ Left $ { image := sixel } self
+
+{-
+{-
     -- '*' always sets the barcode input to an empty buffer
     -- this way, if the barcode scanner is used on a partial buffer,
     -- we clear it before accepting chars from the scanner.
@@ -318,31 +361,7 @@ namespace TUI
         (Do x)      => Do x
       -- if not, we handle them here.
       Nothing      => handleDefault key self
-{-
-  ||| Dispatch over global UI actions
-  onAction : Action -> SmartScale -> IO SmartScale
-  onAction Tear   self = pure $ update (withWeight self.scale tear)  self
-  onAction Store  self = pure $ update (withWeight self.scale store) self
-  onAction Reset  self = pure $ update reset self
-  onAction Select self = pure $ select self
-
-  ||| Update the current scale value when we receive a new packet.
-  export
-  onScale : List Bits8 -> SmartScale -> IO (Maybe SmartScale)
-  onScale result self = do
-    showTextAt (MkPos 0 80) $ show result
-    pure $ Just $ {scale := decode result} self
-
-  ||| Render the given image path in sixel format when we receive an image event.
-  |||
-  ||| One issue here is that we have don't have access to the window
-  ||| here, so we have to choose a fixed image size to render to. But
-  ||| apparently it's important not call out to a subprocess while
-  ||| rendering.
-  onImage : String -> SmartScale -> IO (Maybe SmartScale)
-  onImage path self = do
-    (sixel, code) <- assert_total $ run ["chafa", "-s", "20", "upload/decoded.0"]
-    pure $ Just $ { image := sixel } self
+-}
 
 ||| Entry point for basic scale command.
 export partial
@@ -353,8 +372,7 @@ main ("--once" :: path :: _) = do
 main _ = pure ()
 
 main _ = do
-  _ <- runView
-    onAction
+  _ <- runComponent
     [
      On "Scale" onScale,
      On "Image" onImage

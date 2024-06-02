@@ -1,6 +1,6 @@
 ||| Minimalist terminal UI Framework
 |||
-||| An Editable String View
+||| A Component for editing text.
 module TUI.Component.TextInput
 
 
@@ -12,6 +12,14 @@ import Zipper
 
 %default total
 
+
+||| Actions valid on TextInput
+public export
+data Action
+  = Delete
+  | GoLeft
+  | GoRight
+  | Insert Char
 
 ||| An Editable String View.
 export
@@ -34,58 +42,40 @@ export
 toString : TextInput -> String
 toString self = pack $ toList self.chars
 
-namespace Model
+||| Implement Component for TextInput.
+export
+Component TextInput String Action where
+  update Delete     self = Left $ { chars $= delete  } self
+  update GoLeft     self = Left $ { chars $= goLeft  } self
+  update GoRight    self = Left $ { chars $= goRight } self
+  update (Insert c) self = Left $ { chars $= insert c} self
 
-  public export
-  data Action
-    = Delete
-    | GoLeft
-    | GoRight
-    | Insert Char
+  -- Size is the sum of left and right halves
+  size self = MkArea (length self.chars) 1
 
-  export
-  Model TextInput (Maybe String) Model.Action where
-    update Delete     self = Left $ { chars $= delete  } self
-    update GoLeft     self = Left $ { chars $= goLeft  } self
-    update GoRight    self = Left $ { chars $= goRight } self
-    update (Insert c) self = Left $ { chars $= insert c} self
+  -- when un-focused, just show the string value.
+  paint Normal rect self = do
+    showTextAt rect.nw (toString self)
+  -- when disabled, show a faint string
+  paint Disabled rect self = do
+    sgr [SetStyle Faint]
+    showTextAt rect.nw (toString self)
+    sgr [Reset]
+  -- when focused, show the cursor position in the string.
+  paint Focused rect self = do
+    moveTo rect.nw
+    putStr $ kcap $ self.chars.left
+    reverseVideo
+    putStr $ case self.chars.right of
+      [] => " "
+      x :: _ => singleton x
+    unreverseVideo
+    putStr $ pack $ tail self.chars.right
 
-namespace View
-
-  ||| Implement View for TextInput
-  export
-  View TextInput where
-    -- Size is the sum of left and right halves
-    size self = MkArea (length self.chars) 1
-
-    -- when un-focused, just show the string value.
-    paint Normal rect self = do
-      showTextAt rect.nw (toString self)
-    -- when disabled, show a faint string
-    paint Disabled rect self = do
-      sgr [SetStyle Faint]
-      showTextAt rect.nw (toString self)
-      sgr [Reset]
-    -- when focused, show the cursor position in the string.
-    paint Focused rect self = do
-      moveTo rect.nw
-      putStr $ kcap $ self.chars.left
-      reverseVideo
-      putStr $ case self.chars.right of
-        [] => " "
-        x :: _ => singleton x
-      unreverseVideo
-      putStr $ pack $ tail self.chars.right
-
-namespace Controller
-
-  ||| This controller implements basic single-line text input.
-  Controller TextInput (Response (Maybe String) Model.Action) where
-        -- map keys to their obvious functions.
-    handle Left      self = Do GoLeft
-    handle Right     self = Do GoRight
-    handle Delete    self = Do Delete
-    handle (Alpha c) self = Do $ Insert c
-    handle Enter     self = Yield $ Just $ toString self
-    handle Escape    self = Yield Nothing
-    handle _         self = Ignore
+  handle Left      self = Do GoLeft
+  handle Right     self = Do GoRight
+  handle Delete    self = Do Delete
+  handle (Alpha c) self = Do $ Insert c
+  handle Enter     self = Yield $ Just $ toString self
+  handle Escape    self = Yield Nothing
+  handle _         self = Ignore

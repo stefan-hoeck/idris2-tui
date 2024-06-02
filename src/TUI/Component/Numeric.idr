@@ -26,9 +26,35 @@ data Digits
   = Integral (SnocList (Fin 10))
   | Decimal  (SnocList (Fin 10)) (SnocList (Fin 10))
 
+||| Valid actions on a Numeric widget
+public export
+data Action
+  = Clear
+  | Negate
+  | Insert Input
+
+||| A component for numeric input:
+|||
+||| Ignores non-numeric keypresses, and cannot hold a non-numeric
+||| value.
+|||
+||| Other features include:
+||| - press `-` at any time to swap sign.
+||| - dot ignored after first press.
+||| - backspace clears whole field.
+||| - TBD: increment / decrement actions.
+export
+record Numeric a where
+  constructor N
+  digits   : Digits
+  sign     : Bool
+  step     : a
+
+||| Convert a character to a digit for event handling.
 charToDigit : Char -> Maybe (Fin 10)
 charToDigit char = integerToFin (cast $ ord char - ord '0') 10
 
+||| Convert a digit to a character.
 digitToChar : Fin 10 -> Char
 digitToChar d = cast $ (ord '0') + cast (finToNat d)
 
@@ -49,22 +75,6 @@ digitsToString self = case self of
     impl : SnocList (Fin 10) -> String
     impl [<] = "0"
     impl xs  = kcap $ digitToChar <$> xs
-
-||| An editable number.
-|||
-||| This filters out non-numeric keypresses, and cannot hold a
-||| non-numeric value.
-|||
-||| Other features include:
-||| - press `-` at any time to swap sign
-||| - dot ignored after first press.
-||| - backspace clears whole input (as it's usually easier to start again).
-export
-record Numeric a where
-  constructor N
-  digits   : Digits
-  sign     : Bool
-  step     : a
 
 ||| Get the width of the entire control, including symbols and padding.
 export
@@ -108,91 +118,53 @@ paintNumeric symbol state window self = do
   showTextAt (window.nw + MkArea 2 0) (toString self)
   sgr [Reset]
 
-||| Model implementation for Numeric
-namespace Model
+||| Interface for supported numeric types.
+interface Supported a where
+  (.value)    : Numeric a -> Maybe a
+  symbol      : Char
+  charToInput : Char -> Maybe Input
 
-  public export
-  interface ToValue a where
-    (.value) : Numeric a -> Maybe a
+Supported Nat where
+  (.value)      = parsePositive . toString
+  symbol        = cast 0x2115
+  charToInput c = Digit <$> charToDigit c
 
-  export ToValue Nat     where (.value) = parsePositive . toString
-  export ToValue Integer where (.value) = parseInteger  . toString
-  export ToValue Double  where (.value) = parseDouble   . toString
+Supported Integer where
+  (.value)        = parseInteger . toString
+  symbol          = cast 0x2124
+  charToInput '-' = Just Minus
+  charToInput c   = Digit <$> charToDigit c
 
-  public export
-  interface FromValue a where
-    from : a -> Numeric a
+Supported Double where
+  (.value)        = parseDouble . toString
+  symbol          = cast 0x211d
+  charToInput '-' = Just Minus
+  charToInput '.' = Just Dot
+  charToInput c   = Digit <$> charToDigit c
 
-  public export
-  data Action
-    = Clear
-    | Negate
-    | Insert Input
+||| Handle a supported keypress.
+handleChar : Supported a => Char -> Response a Action
+handleChar char = fromMaybe Ignore $ (Do . Insert) <$> charToInput {a = a} char
 
-  export
-  implementation
-       ToValue a
-    => Model (Numeric a) (Maybe a) Model.Action
-  where
-    update Clear  self     = Left  $ clear  self
-    update Negate self     = Left  $ negate self
-    update (Insert i) self = Left  $ insert i self
+||| Implement Component for supprted number types
+export
+implementation
+     Supported a
+  => Component (Numeric a) a Action
+where
+  update Clear      self = Left $ clear  self
+  update Negate     self = Left $ negate self
+  update (Insert i) self = Left $ insert i self
 
-namespace View
+  size self = MkArea (width self.digits) 1
+  paint state window self = paintNumeric (symbol {a = a}) state window self
 
-  public export
-  interface Symbol a where
-    symbol : Char
-
-  -- the unicode symbols which decorate the widget
-  export Symbol Nat     where symbol = cast 0x2115
-  export Symbol Integer where symbol = cast 0x2124
-  export Symbol Double  where symbol = cast 0x211d
-
-  ||| View is implemented for any number type which defines a symbol.
-  export
-  Symbol a => View (Numeric a) where
-    size self = MkArea (width self.digits) 1
-    paint state window self = paintNumeric (symbol {a = a}) state window self
-
-namespace Controller
-
-  ||| Event handling common to all variants.
-  handleCommon
-    :  ToValue a
-    => Key
-    -> (Char -> Maybe Input)
-    -> Numeric a
-    -> Response (Maybe a) Model.Action
-  handleCommon (Alpha char) f self = fromMaybe Ignore $ (Do . Insert) <$> f char
-  handleCommon Delete       _ self = Do Clear
-  handleCommon Left         _ self = Yield Nothing
-  handleCommon Enter        _ self = Yield self.value
-  handleCommon Escape       _ self = Yield Nothing
-  handleCommon _            _ self = Ignore
-
-  ||| This controller doesn't accept decimal or negation
-  Controller (Numeric Nat) (Response (Maybe Nat) Model.Action) where
-    handle key self = handleCommon key ((map Digit) . charToDigit) self
-
-  ||| This implementation ignores decimals, but handles the minus sign.
-  export
-  Controller (Numeric Integer) (Response (Maybe Integer) Model.Action) where
-    handle key self = handleCommon key special self
-      where
-        special : Char -> Maybe Input
-        special '-' = Just Minus
-        special c   = Digit <$> charToDigit c
-
-  ||| This implementation handles both decimal and minus sign.
-  export
-  Controller (Numeric Double) (Response (Maybe Double) Model.Action) where
-    handle key self = handleCommon key special self
-      where
-        special : Char -> Maybe Input
-        special '-' = Just Minus
-        special '.' = Just Dot
-        special c   = Digit <$> charToDigit c
+  handle (Alpha char) self = handleChar char
+  handle Delete       self = Do Clear
+  handle Left         self = Yield Nothing
+  handle Enter        self = Yield self.value
+  handle Escape       self = Yield Nothing
+  handle _            self = Ignore
 
 ||| Create a numeric widget from a number value.
 export

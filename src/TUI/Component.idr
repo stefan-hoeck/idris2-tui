@@ -11,63 +11,96 @@ import public TUI.View
 
 %default total
 
-||| Extend an inner action with these common patterns.
+
+||| Actions common to all components.
+|||
+||| @ Ignore Don't do anything in response to this event
+||| @ Yield  This component has yielded a value.
+||| @ Do     Run a component-specific action.
 public export
 data Response valueT actionT
   = Ignore
-  | Yield valueT
+  | Yield (Maybe valueT)
   | Do actionT
+
+||| Type alias for the result of component update.
+public export
+0 Result : Type -> Type -> Type
+Result stateT valueT = Either stateT (Maybe valueT)
+
+||| Continue operation with given state.
+public export
+continue : stateT -> Result stateT _
+continue = Left
+
+||| Exit from this component, yielding the given value.
+public export
+ok : valueT -> Result _ valueT
+ok = Right . Just
+
+||| Exit from this component, yielding no value.
+public export
+cancel : Result _ valueT
+cancel = Right Nothing
 
 ||| A component combines model, view, and controller.
 |||
-||| There's a particular relationship between these interfaces that we
-||| try to capture here.
+||| Use this when stateT, valueT and actionT are inter-related.
+|||
+||| Model, View, and Controller are implemented on Component, so if
+||| you implement Component, you need not implement other the
+||| interfaces.
 public export
 interface Component stateT valueT actionT | stateT where
   size   : stateT -> Area
   paint  : State -> Rect -> stateT -> IO ()
   handle : Key -> stateT -> Response valueT actionT
-  update : Response valueT actionT -> stateT -> Either stateT valueT
+  update : actionT -> stateT -> Either stateT valueT
 
-||| Lift an event source to work with our component
-export
-liftSource
-  :  Component stateT valueT actionT
-  => EventSource stateT actionT
-  -> EventSource stateT (Response valueT actionT)
-liftSource source = Do <$> source
-
-||| Handle updates on a wrapped Response
+||| Handle the common actions on Component.
+|||
+||| This saves us having to specify these cases in every component
+||| implementation, and ensures consistent behavior across components.
 export
 liftUpdate
-  :  {auto impl : Model stateT valueT actionT}
-  -> Response (Maybe valueT) actionT
+  :  Component stateT valueT actionT
+  => Response valueT actionT
   -> stateT
-  -> Either stateT (Maybe valueT)
+  -> Result stateT valueT
 liftUpdate Ignore      self = Left self
 liftUpdate (Yield x)   _    = Right x
-liftUpdate (Do action) self = Just <$> update @{impl} action self
+liftUpdate (Do action) self = Just <$> Component.update action self
 
-||| Default component implementation
+||| Implement model for component.
 |||
-||| Component is automatically implemented when Model, View, and
-||| Controller are already implemented for `stateT`.
-|||
-||| You are free to define more specialized implementations.
-|||
-||| The inner action is wrapped in `Response`. This makes `Ignore`,
-||| `Yield`, and `Do` available for implementations.
-|||
-||| The value type is wrapped in `Maybe`, allowing implementations to
-||| signal that a value is unavailable.
+||| The update function is wrapped by liftUpdate above, so
+||| implementations do not need to explicitly handle these cases.
 export
 implementation
-     Model stateT valueT actionT
-  => View stateT
-  => Controller stateT (Response (Maybe valueT) actionT)
-  => Component  stateT (Maybe valueT) actionT
+     Component stateT valueT actionT
+  => Model stateT (Maybe valueT) (Response valueT actionT)
 where
-   size = View.size
-   paint = View.paint
-   handle = Controller.handle
-   update = liftUpdate
+  update response self = liftUpdate response self
+
+||| Implement View for component.
+|||
+||| We simply delegate to the component methods.
+|||
+||| XXX: I'm not sure why I had to do it like this, interface
+||| resolution seems a bit wonky.
+public export
+%hint
+componentViewImpl
+  : {auto impl : Component stateT _ _}
+  -> View stateT
+componentViewImpl {impl} = MkView Component.size Component.paint
+
+||| Implement Controller for component.
+|||
+||| We simply delegate to the component method.
+export
+implementation
+     Component stateT valueT actionT
+  => Controller stateT (Response valueT actionT)
+where
+  handle = Component.handle
