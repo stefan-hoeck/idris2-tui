@@ -189,7 +189,7 @@ namespace SmartScale
     constructor MkSmartScale
     containers : Zipper Container
     scale      : Result
-    barcode    : Editor String
+    barcode    : Editor String TextInput
     image      : String
 
   ||| These are the global actions for this component.

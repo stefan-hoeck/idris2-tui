@@ -6,6 +6,7 @@ module TUI.Component.TextInput
 
 import Data.String
 import TUI.Component
+import TUI.Component.Editor
 import Util
 import Zipper
 
@@ -79,3 +80,12 @@ Component TextInput String Action where
   handle Enter     self = Yield $ Just $ toString self
   handle Escape    self = Yield Nothing
   handle _         self = Ignore
+
+||| Make `String` `Editable` via `TextInput` 
+export
+Editable String TextInput Action where
+  component = %search
+  view      = string
+  fromValue = TextInput.fromString
+  toValue   = Just . TextInput.toString
+  blank     = TextInput.empty

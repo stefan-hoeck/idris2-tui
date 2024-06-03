@@ -17,7 +17,6 @@ import Zipper
 ||| Actions valid on TextInput
 |||
 ||| @ Edit     Begin editing the inner value.
-||| @ Commit   Try to commit the given value.
 ||| @ Rollback Restore the previous value, if any.
 public export
 data Action valueT actionT
@@ -38,11 +37,13 @@ data Editor valueT editorT
 
 ||| Defines how to create an editor for a value.
 public export
-interface
-     View valueT
-  => Component editorT valueT actionT
-  => Editable valueT editorT
+interface Editable valueT editorT actionT
+  | valueT
+  , editorT
 where
+  constructor MkEditable
+  component : Component editorT valueT actionT
+  view      : View valueT
   fromValue : valueT  -> editorT
   toValue   : editorT -> Maybe valueT
   blank     : editorT
@@ -60,7 +61,7 @@ accepted value = Accepted value Nothing
 ||| Construct an editor in the editing state.
 export
 editing
-  :  Editable valueT editorT
+  :  Editable valueT editorT actionT
   => valueT
   -> Editor valueT editorT
 editing value = Editing (fromValue value) (Just value)
@@ -73,12 +74,12 @@ editing value = Editing (fromValue value) (Just value)
 ||| Has no effect if already editing.
 export
 edit
-  :  {auto impl : Editable valueT editorT}
+  :  Editable valueT editorT actionT
+  => Editor valueT editorT
   -> Editor valueT editorT
-  -> Editor valueT editorT
-edit (Empty _)             = Editing (blank @{impl}) Nothing
-edit (Accepted v Nothing)  = Editing (fromValue v)   (Just v)
-edit (Accepted v (Just e)) = Editing e               (Just v)
+edit (Empty _)             = Editing (blank {valueT = valueT}) Nothing
+edit (Accepted v Nothing)  = Editing (fromValue v)             (Just v)
+edit (Accepted v (Just e)) = Editing e                         (Just v)
 edit self                  = self
 
 ||| Try to transition to the Accepted state with the current value.
@@ -87,7 +88,7 @@ edit self                  = self
 ||| in the editing state.
 export
 commit
-  :  Editable valueT editorT
+  :  Editable valueT editorT actionT
   => Editor valueT editorT
   -> Editor valueT editorT
 commit self@(Editing e v) = case toValue e of
@@ -98,7 +99,7 @@ commit self = self
 ||| Leave the editing state, restoring previous value if present.
 export
 rollback
-  :  Editable valueT editorT
+  :  Editable valueT editorT actionT
   => Editor valueT editorT
   -> Editor valueT editorT
 rollback (Editing _ Nothing)  = Empty "(empty)"
@@ -107,7 +108,7 @@ rollback self                 = self
 
 ||| Update the editor by applying the inner action.
 lift
-  :  Editable valueT editorT
+  :  Editable valueT editorT actionT
   => Response valueT actionT
   -> Editor valueT editorT
   -> Either (Editor valueT editorT) valueT
@@ -115,7 +116,7 @@ lift Ignore self           = Left self
 lift (Yield Nothing)  self = Left $ rollback self
 lift (Yield (Just x)) self = Left $ commit self
 lift (Do action)      self = case self of
-  Editing e v => case update action e of
+  Editing e v => case Component.update @{component} action e of
     Left e => Left $ Editing e v
     Right v => Right v
   _ => Left self
@@ -123,22 +124,21 @@ lift (Do action)      self = case self of
 ||| Implement Component for Editor
 export
 implementation
-     View valueT
-  => Component editorT valueT actionT
-  => Editable valueT editorT
-  => Component (Editor valueT editorT) valueT (Editor.Action valueT actionT)
+     {impl : Editable valueT editorT actionT}
+  -> Component (Editor valueT editorT) valueT (Editor.Action valueT actionT)
 where
   update Edit        self = Left $ edit self
   update (Lift resp) self = lift resp self
 
-  size (Empty placeholder) = size @{string} placeholder
-  size (Editing editor _)  = size editor
-  size (Accepted value _)  = View.size value
+  size (Empty placeholder) = size @{string}            placeholder
+  size (Editing e _)       = size @{component @{impl}} e
+  size (Accepted value _)  = size @{view      @{impl}} value
 
-  paint state window (Empty ph)         = paint @{string} state window ph
-  paint state window (Editing editor _) = paint state window editor
-  paint state window (Accepted value _) = paint state window value
+  paint state window self = case self of
+    (Empty    placeholder) => paint @{string}            state window placeholder
+    (Editing  editor _)    => paint @{component @{impl}} state window editor
+    (Accepted value _)     => paint @{view @{impl}}      state window value
 
-  handle key (Editing editor _) = Do $ Lift $ Component.handle key editor
+  handle key (Editing editor _) = Do $ Lift $ handle @{component @{impl}} key editor
   handle Enter  self = Do Edit
   handle _      self = Ignore
