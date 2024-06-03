@@ -52,6 +52,7 @@ cancel = Right Nothing
 ||| interfaces.
 public export
 interface Component stateT valueT actionT | stateT where
+  constructor MkComponent
   size   : stateT -> Area
   paint  : State -> Rect -> stateT -> IO ()
   handle : Key -> stateT -> Response valueT actionT

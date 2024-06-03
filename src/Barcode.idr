@@ -11,24 +11,23 @@ import JSON.Derive
 
 
 ||| Concrete type for all supported barcode formats.
-export
+public export
 data Barcode
   = EAN13 (Vect 13 Char)
   | UPC   (Vect 12 Char)
-  | USER  (Vect 4  Char)
+  | User  (Vect 4  Char)
 %runElab derive "Barcode" [Eq,Ord, FromJSON, ToJSON]
 
 export
 Show Barcode where
   show (EAN13 bc) = "EAN13:" ++ pack (toList bc)
   show (UPC   bc) = "UPC:" ++ pack (toList bc)
-  show (USER  bc) = "USER:" ++ pack (toList bc)
+  show (User  bc) = "User:" ++ pack (toList bc)
 
 ||| Barcodes are serialized as a string with the standard prefixed.
 export
 ToJSON Barcode where
   toJSON bc = string $ show bc
-
 
 -- thanks to Stephen Hoek again, for explaining how to write this. I
 -- struggled to figure it out on my own.
@@ -51,7 +50,7 @@ parseBarcode : Parser String Barcode
 parseBarcode s = case forget $ split (':' ==) s of
   ["EAN13", r] => EAN13 <$> parseVect r
   ["UPC", r]   => UPC   <$> parseVect r
-  ["USER", r]  => USER  <$> parseVect r
+  ["User", r]  => User  <$> parseVect r
   _            => fail "Invalid barcode: \{s}"
 
 ||| Implement JSON Deserialization
@@ -63,11 +62,10 @@ FromJSON Barcode where
 export
 fromDigits : String -> Maybe Barcode
 fromDigits s = case length s of
-  4  => map USER  $ toVect  4 $ unpack s
+  4  => map User  $ toVect  4 $ unpack s
   12 => map UPC   $ toVect 12 $ unpack s
   13 => map EAN13 $ toVect 13 $ unpack s
   _  => Nothing
-
 
 ||| Allow static strings to decode automatically to barcodes.
 |||

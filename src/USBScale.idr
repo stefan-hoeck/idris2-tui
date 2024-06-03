@@ -6,6 +6,7 @@ module USBScale
 
 
 import Barcode
+import Container
 import Control.ANSI
 import Data.Bits
 import Data.Buffer
@@ -17,11 +18,7 @@ import Measures
 import System.Concurrency
 import System
 import System.File
-import System.Signal
 import TUI
-import TUI.Event
-import TUI.View
-import TUI.Painting
 import Util
 import Zipper
 
@@ -57,15 +54,6 @@ data Result
   | Fault String
   | Ok Weight
 %runElab derive "Result" [Show,Ord,Eq,FromJSON,ToJSON]
-
-||| Apply `f` to `x` if the given result is a weight
-|||
-||| If the given Result isn't a valid weight, returns the original
-||| value.
-public export
-withWeight : Result -> (Weight -> a -> a) -> a -> a
-withWeight (Ok weight) f x = f weight x
-withWeight _           _ x = x
 
 ||| Calculate the current weight from the raw binary values
 calcWeight : Bits8 -> Int -> Int -> Int -> Weight
@@ -153,67 +141,26 @@ export partial
 spawn : String -> (Result -> IO Builtin.Unit) -> IO ThreadID
 spawn path post = fork (run post path)
 
-
-{-
-||| All the stuff for the fullscreen terminal front-end lives here
-|||
-||| XXX: make this prettier
-namespace Model
+namespace Container
   %hide Measures.Unit
-  %hide Prelude.(-)
-
-  ||| Holds the information about a container
-  |||
-  ||| XXX: This should be merged to use the Container module, but will
-  ||| probably need some refactoring first. The container should join
-  ||| on any available inventory DB record if its available.
-  export
-  record Container where
-    constructor MkContainer
-    barcode : Barcode
-    tear    : Weight
-    gross   : Weight
-
-  ||| Make an empty container with the given barcode.
-  export
-  empty : Barcode -> Container
-  empty barcode = MkContainer barcode 0.g 0.g
-
-  ||| Project out the net weight from Container
-  (.net) : Container -> Weight
-  (.net) self = self.gross - self.tear
-
-  ||| Updates tear weight on the container.
-  tear : Weight -> Container -> Container
-  tear w = { tear := w }
-
-  ||| Updates the gross weight on the container to w.
-  store : Weight -> Container -> Container
-  store w = { gross := w }
-
-  ||| Reset both weights to zero.
-  reset : Container -> Container
-  reset = { tear := 0.g, gross := 0.g }
-
-  ||| True if the container has the given barcode.
-  hasBarcode : Barcode -> Container -> Bool
-  hasBarcode bc self = bc == self.barcode
 
   View Container where
     -- size here is just a guess, but it should be a fixed grid
     -- up to 13 chars for the barcode, plus padding
     -- 10 digits each for gross, tear, and net
     size _ = MkArea (14 + 10 + 10 + 10) 1
+
     paint state window self = do
       let (top,     bottom) = vsplit window 1
       let (barcode, top   ) = hsplit top 13
       let (tear,    top   ) = hsplit top 10
       let (gross,   net   ) = hsplit top 10
-      paint state barcode self.barcode
+      paint state barcode self.id
       paint state tear    self.tear
       paint state gross   self.gross
       paint state net     self.net
 
+namespace SmartScale
   ||| An MVP of my "Smart Scale" concept
   |||
   ||| Basically: we have a list of containers and a digital scale.
@@ -245,50 +192,93 @@ namespace Model
     barcode    : Maybe TextInput
     image      : String
 
-  ||| These actions correspond to the container methods above
-  ||| But are handled in the parent view
+  ||| These are the global actions for this component.
   data Action
     = Prev
     | Next
-    | Tear  Result
-    | Store Result
+    | Tear
+    | Store
     | Reset
-    | Select
-    | OnScale Result
-    | OnImage String
+    | BarcodeBegin
+    | BarcodeKey TextInput.Action
+    | BarcodeEnd
+    | SetScale Result
+    | SetImage String
 
   ||| Update the selected container by the application of `f`
-  update : (Container -> Container) -> SmartScale -> SmartScale
-  update f = { containers $= update f }
+  updateSelected : (Container -> Container) -> SmartScale -> SmartScale
+  updateSelected f = { containers $= update f }
 
   ||| Check whether user has entered a valid barcode
   validateBarcode : SmartScale -> Maybe Barcode
   validateBarcode self = fromDigits $ toString !self.barcode
 
-  ||| Select or add the current barcode in the container list
+  ||| Select or add the current barcode to the container list
   select : SmartScale -> SmartScale
   select self = case validateBarcode self of
     Nothing => self
-    Just bc => {
-      containers $= findOrInsert (hasBarcode bc) (empty bc),
+    Just bc@(User id) => {
+      containers $= findOrInsert (hasBarcode bc) (empty id Reusable),
       barcode := Nothing
     } self
+    Just food => self
 
-  Model SmartScale () TUI.Action where
-    update Prev self = Left $ { containers $= goLeft }  self
-    update Next self = Left $ { containers $= goRight } self
-    update (Tear result) self = Left $ update (withWeight result tear) self
-    update (Store result) self = Left $ update (withWeight result store) self
-    update Reset self = Left $ update reset self
-    update Select self = Left $ select self
-    update (OnScale result) self = Left $ { scale := result } self
-    update (OnImage sixel) self = Left $ { image := sixel } self
+  ||| Apply `f` to `x` if the given result is a weight
+  |||
+  ||| If the given Result isn't a valid weight, returns the original
+  ||| value.
+  public export
+  withCurrentWeight
+    :  (Weight -> Container -> Container)
+    -> SmartScale
+    -> SmartScale
+  withCurrentWeight f self = case self.scale of
+    Ok weight => updateSelected (f weight) self
+    _         => self
 
-namespace View
+{-
+  ||| Handles events when the barcode input is not active
+  |||
+  ||| Receiving a '*' will give focus to the barcode input.
+  handleDefault : Key -> SmartScale -> Response (Maybe ()) TUI.Action
+  handleDefault (Alpha 'q') self = Yield Nothing
+  handleDefault (Alpha 't') self = withWeight case self.scale of
+    Do Tear
+  handleDefault (Alpha 's') self = Do Store
+  handleDefault (Alpha 'r') self = Do Reset
+  handleDefault (Alpha _)   self = Ignore
+  handleDefault Left        self = Ignore
+  handleDefault Right       self = Ignore
+  handleDefault Up          self = Do Next
+  handleDefault Down        self = Do Prev
+  handleDefault Delete      self = Do Tear
+  handleDefault Enter       self = Do Store
+  handleDefault Tab         self = Do Next
+  handleDefault Escape      self = Yield Nothing
+ -}
 
-  ||| view implementation for smart scale
-  export
-  View SmartScale where
+  ||| Handle nested updates to the barcode field.
+  |||
+  ||| XXX: Hopefully this points the way toward how to nest components.
+  updateBarcode
+    : TextInput.Action
+    -> SmartScale
+    -> Result SmartScale (List Container)
+  updateBarcode action self = case Component.update (Do action) self.barcode of
+    xxx => ?hole
+
+  ||| Implement Component for our SmartScale
+  Component SmartScale (List Container) SmartScale.Action where
+    update Prev              self = Left $ { containers $= goLeft }  self
+    update Next              self = Left $ { containers $= goRight } self
+    update Tear              self = Left $ withCurrentWeight setTear  self
+    update Store             self = Left $ withCurrentWeight setGross self
+    update Reset             self = Left $ updateSelected reset self
+    update BarcodeBegin      self = Left $ { barcode := empty } self
+    update (BarcodeKey a)    self = updateBarcode a self
+    update (SetScale result) self = Left $ { scale   := result } self
+    update (SetImage sixel)  self = Left $ { image   := sixel }  self
+
     size self = MkArea 23 (length self.containers + 4)
     paint state window self = do
       let (top, bottom) = vdivide window 3
@@ -309,26 +299,20 @@ namespace View
           bottom <- packTop @{string} Normal bottom "Barcode      Tear      Gross     Net "
           ignore $ paint @{vertical} state bottom self.containers
 
-namespace Controller
-  ||| Handles events when the barcode input is not active
-  |||
-  ||| Receiving a '*' will give focus to the barcode input.
-  handleDefault : Key -> SmartScale -> Response (Maybe ()) TUI.Action
-  handleDefault (Alpha 'q') self = Yield Nothing
-  handleDefault (Alpha 't') self = withWeight case self.scale of
-    Do Tear
-  handleDefault (Alpha 's') self = Do Store
-  handleDefault (Alpha 'r') self = Do Reset
-  handleDefault (Alpha _)   self = Ignore
-  handleDefault Left        self = Ignore
-  handleDefault Right       self = Ignore
-  handleDefault Up          self = Do Next
-  handleDefault Down        self = Do Prev
-  handleDefault Delete      self = Do Tear
-  handleDefault Enter       self = Do Store
-  handleDefault Tab         self = Do Next
-  handleDefault Escape      self = Yield Nothing
+    -- '*' always sets the barcode input to an empty buffer
+    -- this way, if the barcode scanner is used on a partial buffer,
+    -- we clear it before accepting chars from the scanner.
+    handle (Alpha '*') self = Update $ { barcode := Just (empty Select) } self
+    handle key self = case self.barcode of
+      -- if the barcode view is present, it get focus
+      Just barcode => case handle key barcode of
+        (Update x)  => Update $ { barcode := Just x } self
+        Exit        => Update $ { barcode := Nothing } self
+        (Do x)      => Do x
+      -- if not, we handle them here.
+      Nothing      => handleDefault key self
 
+{-
 
   ||| Update the current scale value when we receive a new packet.
   export
@@ -346,22 +330,6 @@ namespace Controller
   onImage path self = do
     (sixel, code) <- assert_total $ run ["chafa", "-s", "20", "upload/decoded.0"]
     pure $ Left $ { image := sixel } self
-
-{-
-{-
-    -- '*' always sets the barcode input to an empty buffer
-    -- this way, if the barcode scanner is used on a partial buffer,
-    -- we clear it before accepting chars from the scanner.
-    handle (Alpha '*') self = Update $ { barcode := Just (empty Select) } self
-    handle key self = case self.barcode of
-      -- if the barcode view is present, it get focus
-      Just barcode => case handle key barcode of
-        (Update x)  => Update $ { barcode := Just x } self
-        Exit        => Update $ { barcode := Nothing } self
-        (Do x)      => Do x
-      -- if not, we handle them here.
-      Nothing      => handleDefault key self
--}
 
 ||| Entry point for basic scale command.
 export partial
