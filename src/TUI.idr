@@ -68,6 +68,7 @@ module TUI
 import public TUI.Component
 import public TUI.Component.Container
 import public TUI.Component.Dynamic
+import public TUI.Component.Editor
 import public TUI.Component.Form
 import public TUI.Component.Menu
 import public TUI.Component.Numeric
