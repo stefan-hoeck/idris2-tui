@@ -57,7 +57,8 @@ def readScale(path, q):
 
 def readStdin(q):
     fd = sys.stdin.fileno()
-    os.set_blocking(fd, False)
+    # XXX: this breaks sixel graphics, investigate!
+    # os.set_blocking(fd, False)
     while True:
         try:
             match os.read(fd, 1):
