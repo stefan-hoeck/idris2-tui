@@ -301,7 +301,7 @@ namespace SmartScale
   covering
   onImage : String -> SmartScale -> Response _ SmartScale.Action
   onImage path self = Run $ do
-    sixel <- sixelFromPath path path (MkArea 20 40)
+    sixel <- sixelFromPath Max path path (MkArea 20 40)
     pure $ SetImage sixel
 
   ||| Create a new SmartScale with the given list of containers.

@@ -11,6 +11,10 @@ import TUI.View
 %default total
 
 
+||| The bit depths supported by Chafa
+public export
+data BitDepth = B2 | B8 | B16 | B240 | B256 | Full | Max
+
 ||| An abstract image.
 |||
 ||| calling `putImage` will draw it to the screen at the current
@@ -49,16 +53,28 @@ putImage pos self = do
 ||| not sure how safe this is, use at your own risk. There aren't any
 ||| idris image decoding libraries, native or otherwise.
 export covering
-sixelFromPath : String -> String -> Area -> IO Image
-sixelFromPath path alt size = do
-  case !(run [
-    "chafa",
-    "-s", "\{show size.width}x\{show size.height}",
-    "-c", "8",
-    path
-  ]) of
+sixelFromPath : BitDepth -> String -> String -> Area -> IO Image
+sixelFromPath depth path alt size = do
+  case !(run cmdline) of
     (sixel, 0) => pure $ MkImage size (Just sixel) alt
     _          => pure $ MkImage size Nothing alt
+where
+  ||| Convert bit-depth to a command line argument
+  bitDepth : BitDepth -> List String
+  bitDepth B2   = ["-c", "2"   ]
+  bitDepth B8   = ["-c", "8"   ]
+  bitDepth B16  = ["-c", "16"  ]
+  bitDepth B240 = ["-c", "240" ]
+  bitDepth B256 = ["-c", "256" ]
+  bitDepth Full = ["-c", "full"]
+  bitDepth Max  = []
+
+  sizeArgs : Area -> List String
+  sizeArgs (MkArea width height) = ["-s", "\{show width}x\{show height}"]
+
+  cmdline : List String
+  cmdline = ["chafa"] ++ (sizeArgs size) ++ (bitDepth depth) ++ [path]
+
 
 ||| An image can also be used directly as a view.
 export
