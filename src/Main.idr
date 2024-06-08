@@ -32,8 +32,8 @@ import Editor
 ||| Dispatch according to our args.
 partial
 dispatch : String -> List String -> IO ()
-dispatch "inventory" rest = Inventory.main rest
-dispatch "scale"     rest = pure () -- USBScale.main rest
+dispatch "inventory" rest = pure () -- Inventory.main rest
+dispatch "scale"     rest = USBScale.main rest
 dispatch "test"      _    = TUI.gallery
 dispatch "editor"    rest = Editor.main rest
 dispatch sc          _    = putStrLn ("Invalid subcommand: " ++ sc)

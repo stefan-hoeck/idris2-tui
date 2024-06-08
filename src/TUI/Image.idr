@@ -34,7 +34,7 @@ putImage pos image = showTextAt pos image.contents
 ||| XXX: This is a stopgap which requires the `chafa` binary. I'm
 ||| not sure how safe this is, use at your own risk. There aren't any
 ||| idris image decoding libraries, native or otherwise.
-partial export
+export covering
 sixelFromPath : String -> Area -> IO (Maybe Image)
 sixelFromPath path size = do
   case !(run [

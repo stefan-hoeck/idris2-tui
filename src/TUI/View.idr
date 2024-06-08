@@ -69,12 +69,16 @@ View () where
   paint _ _ _ = pure ()
 
 export
-[string] View String where
+View String where
   size self = MkArea (length self) 1
   paint state window self = withState state $ showTextAt window.nw self
 
-||| Any type implementing `Show` can be painted.
+||| Any type implementing `Show` can be painted
+|||
+||| Unfortunately, this implementation will often 'win' when you don't
+||| want it to, so it remains a named impl.
 export
+[show]
 Show a => View a where
   size s = MkArea (length (show s)) 1
   paint state r s = withState state $ showTextAt r.nw (show s)

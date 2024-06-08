@@ -29,11 +29,11 @@ import USBScale
 %default total
 %language ElabReflection
 
-
+{-
 namespace Raw
   public export
   0 Container : Type
-  Container = Container.Container Barcode
+  Container = Container.Container
 
 namespace Joined
   public export

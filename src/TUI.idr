@@ -66,7 +66,6 @@
 module TUI
 
 import public TUI.Component
-import public TUI.Component.Container
 import public TUI.Component.Dynamic
 import public TUI.Component.Editor
 import public TUI.Component.Form
@@ -74,8 +73,7 @@ import public TUI.Component.Menu
 import public TUI.Component.Numeric
 import public TUI.Component.Table
 import public TUI.Component.TextInput
--- import public TUI.Component.Popup
--- import public TUI.Component.SOP
+import public TUI.Component.VList
 import public TUI.Controller
 import public TUI.Event
 import public TUI.Image
@@ -95,7 +93,6 @@ testMenu : Exclusive String
 testMenu = menu ["foo", "bar", "baz"]
 
 {-
-
 export
 testDynamic : Dynamic ()
 testDynamic = Dyn testMenu
@@ -128,13 +125,13 @@ testForm = form [
   field "Text Input" $ TextInput.fromString "test",
   field "Test"       $ TextInput.fromString "test"
 ]
--}
 
+-}
 
 partial export
 gallery : IO ()
 gallery = do
-  let result : Maybe String = !(runComponent [] updateOnly testMenu)
+  let result : Maybe String = !(runComponent [] testMenu)
   case result of
     Nothing => putStrLn "User Canceled"
     Just choice => putStrLn $ "User selected: \{show choice}"

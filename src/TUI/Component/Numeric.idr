@@ -146,25 +146,32 @@ Supported Double where
 handleChar : Supported a => Char -> Response a Action
 handleChar char = fromMaybe Ignore $ (Do . Insert) <$> charToInput {a = a} char
 
-||| Implement Component for supprted number types
+||| Implement Model for supported number types.
 export
-implementation
-     Supported a
-  => Component (Numeric a) a Action
-where
-  update Clear      self = Left $ clear  self
-  update Negate     self = Left $ negate self
-  update (Insert i) self = Left $ insert i self
+Supported a => Model (Numeric a) Action where
+  update Clear      self = clear  self
+  update Negate     self = negate self
+  update (Insert i) self = insert i self
 
+||| Implement Model for supported number types.
+export
+Supported a => View (Numeric a) where
   size self = MkArea (width self.digits) 1
   paint state window self = paintNumeric (symbol {a = a}) state window self
 
+||| Implement Model for supported number types.
+export
+Supported a => Controller (Numeric a) a Action where
   handle (Alpha char) self = handleChar char
   handle Delete       self = Do Clear
   handle Left         self = Yield Nothing
   handle Enter        self = Yield self.value
   handle Escape       self = Yield Nothing
   handle _            self = Ignore
+
+||| Implement Model for supported number types.
+export
+Supported a => Component (Numeric a) a Action where
 
 ||| Create a numeric widget from a number value.
 export

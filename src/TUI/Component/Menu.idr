@@ -65,14 +65,16 @@ arrowForIndex (FS n) = if FS n == last
   else arrow UpDown
 
 export
-View itemT => Component (Exclusive itemT) itemT Action where
-  update Prev       self = Left $ prev self
-  update Next       self = Left $ next self
+Model (Exclusive itemT) Action where
+  update Prev       self = prev self
+  update Next       self = next self
   update (Choose i) self = case natToFin i (length self.choices) of
-    Just i => Left $ choose self i
+    Just i => choose self i
     -- if the index is invalid, leave unchanged.
-    Nothing => Left $ self
+    Nothing => self
 
+export
+View itemT => View (Exclusive itemT) where
   size self =
     let sizes   := View.size <$> self.choices
         content := foldl Area.union (MkArea 0 0) sizes
@@ -82,6 +84,8 @@ View itemT => Component (Exclusive itemT) itemT Action where
     withState state $ showTextAt window.nw (arrowForIndex self.choice)
     paint state (window.shiftRight 2) self.selected
 
+export
+Controller (Exclusive itemT) itemT Action where
   handle Up     self = Do     Prev
   handle Down   self = Do     Next
   handle Left   self = Yield  Nothing
@@ -89,11 +93,13 @@ View itemT => Component (Exclusive itemT) itemT Action where
   handle Enter  self = Yield  $ Just self.selected
   handle _      _    = Ignore
 
+export
+View itemT => Component (Exclusive itemT) itemT Action where
+
 ||| Create an exclusive choice component from a non-empty list of choices.
 export
 menu
-  :  View itemT
-  => (choices    : List itemT)
+  :  (choices    : List itemT)
   -> {auto 0 prf : IsJust (natToFin 0 (length choices))}
   -> Exclusive itemT
 menu choices = MkChoice choices $ fromJust $ natToFin 0 (length choices)

@@ -43,14 +43,17 @@ export
 toString : TextInput -> String
 toString self = pack $ toList self.chars
 
-||| Implement Component for TextInput.
+||| Implement Model for TextInput
 export
-Component TextInput String Action where
-  update Delete     self = Left $ { chars $= delete  } self
-  update GoLeft     self = Left $ { chars $= goLeft  } self
-  update GoRight    self = Left $ { chars $= goRight } self
-  update (Insert c) self = Left $ { chars $= insert c} self
+Model TextInput Action where
+  update Delete     self = {chars $= delete}   self
+  update GoLeft     self = {chars $= goLeft}   self
+  update GoRight    self = {chars $= goRight}  self
+  update (Insert c) self = {chars $= insert c} self
 
+||| Implement View for TextInput
+export
+View TextInput where
   -- Size is the sum of left and right halves
   size self = MkArea (length self.chars) 1
 
@@ -73,6 +76,9 @@ Component TextInput String Action where
     unreverseVideo
     putStr $ pack $ tail self.chars.right
 
+||| Implement Component for TextInput.
+export
+Controller TextInput String Action where
   handle Left      self = Do GoLeft
   handle Right     self = Do GoRight
   handle Delete    self = Do Delete
@@ -81,11 +87,13 @@ Component TextInput String Action where
   handle Escape    self = Yield Nothing
   handle _         self = Ignore
 
-||| Make `String` `Editable` via `TextInput` 
+||| Implement Component for TextInput.
+export
+Component TextInput String Action where
+
+||| Make `String` `Editable` via `TextInput`
 export
 Editable String TextInput Action where
-  component = %search
-  view      = string
   fromValue = TextInput.fromString
   toValue   = Just . TextInput.toString
   blank     = TextInput.empty

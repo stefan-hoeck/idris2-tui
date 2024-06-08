@@ -43,6 +43,10 @@ namespace Data.String
       True  => padRight w ' ' s
       False => truncateTo w s
 
+  ||| Append a single character to the given string
+  public export
+  append : Char -> String -> String
+  append char self = self ++ singleton char
 
 namespace Data.Either
   ||| XXX: should be library function
@@ -206,7 +210,6 @@ namespace Data.Vect.Quantifiers
     -> All p xs
   updateAt FZ     f (x :: xs) = f x :: xs
   updateAt (FS i) f (x :: xs) = x :: updateAt i f xs
-
 
   ||| get the value at the index
   public export

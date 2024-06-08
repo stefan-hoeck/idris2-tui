@@ -13,6 +13,6 @@ module TUI.Model
 
 ||| A model knows how to update itself in response to an action.
 public export
-interface Model stateT valueT actionT where
+interface Model stateT actionT | stateT where
   ||| Update the model's state in response to an inner action.
-  update : actionT -> stateT -> Either stateT valueT
+  update : actionT -> stateT -> stateT

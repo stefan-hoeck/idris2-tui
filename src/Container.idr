@@ -6,10 +6,14 @@ import DirDB
 import Food
 import JSON.Derive
 import Measures
+import TUI
 
 
 %default total
 %language ElabReflection
+
+
+%hide Measures.Unit
 
 
 ||| The type of container IDs.
@@ -123,3 +127,21 @@ export
 hasBarcode : Barcode -> Container -> Bool
 hasBarcode (User id) self = id      == self.id
 hasBarcode barcode   self = fromMaybe False $ (barcode ==) <$> self.food
+
+||| This is the 'row' View for container.
+export
+View Container where
+  -- size here is just a guess, but it should be a fixed grid
+  -- up to 13 chars for the barcode, plus padding
+  -- 10 digits each for gross, tear, and net
+  size _ = MkArea (14 + 10 + 10 + 10) 1
+
+  paint state window self = do
+    let (top,     bottom) = vsplit window 1
+    let (barcode, top   ) = hsplit top 13
+    let (tear,    top   ) = hsplit top 10
+    let (gross,   net   ) = hsplit top 10
+    paint @{show} state barcode (User self.id)
+    paint @{show} state tear    self.tear
+    paint @{show} state gross   self.gross
+    paint @{show} state net     self.net

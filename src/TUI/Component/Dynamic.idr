@@ -5,7 +5,7 @@ module TUI.Component.Dynamic
 
 import TUI.Component
 
-||| A dynamic dispatch cell for compound views.
+||| A dynamic dispatch cell for components.
 |||
 ||| The concrete type and View implementation is captured
 ||| implicitly. The impl is kept around for runtime dispatch.
@@ -16,12 +16,14 @@ record Dynamic valueT actionT where
   inner          : stateT
   {auto impl     : Component stateT valueT actionT}
 
+Model (Dynamic valueT actionT) actionT where
+  update action self = {inner $= Model.update @{model} action} self
+
+View (Dynamic valueT actionT) where
+  size  self              = size  @{view @{self.impl}} self.inner
+  paint state window self = paint @{view @{self.impl}} state window self.inner
+
 ||| Proxy to the wrapped type.
 export
-Component (Dynamic valueT actionT) valueT actionT where
-  size   self               = size   @{self.impl} self.inner
-  paint  state  window self = paint  @{self.impl} state window self.inner
-  handle key    self        = handle @{self.impl} key self.inner
-  update action self        = case update @{self.impl} action self.inner of
-    Left inner => Left $ { inner := inner } self
-    Right value => Right value
+Controller (Dynamic valueT actionT) valueT actionT where
+  handle key self = handle @{controller @{self.impl}} key self.inner

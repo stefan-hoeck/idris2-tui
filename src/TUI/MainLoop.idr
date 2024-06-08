@@ -138,65 +138,33 @@ namespace InputShim
 
 
 namespace MVC
-  ||| Return type for `onAction` (see below).
-  |||
-  ||| @Update Allow the model to update the state.
-  ||| @Run    Run the given IO action on the current state.
-  public export
-  data Effect stateT = Update | Run (IO stateT)
-
-  ||| A convenience function for when an application has no effects.
-  public export
-  updateOnly : actionT -> stateT -> Effect stateT
-  updateOnly _ _ = Update
-
   ||| Run a top-level MVC statck.
   |||
-  ||| Use this entry point if you to want MVC abstractions but do not
-  ||| want to use the component abstraction.
+  ||| Use this entry point if you to want MVC abstractions.
   covering export
   runMVC
-    :  Model stateT valueT actionT
-    => {auto viewImpl : View stateT}
-    -> Controller stateT actionT
-    => (sources : List (EventSource stateT actionT))
-    -> (onAction : actionT -> stateT -> Effect stateT)
+    :  Model stateT actionT
+    => View stateT
+    => Controller stateT valueT actionT
+    => (sources : List (EventSource stateT (Response valueT actionT)))
     -> stateT
-    -> IO valueT
-  runMVC sources onAction init =
+    -> IO (Maybe valueT)
+  runMVC sources init =
     runTUI
       Controller.handle
       sources
       (View.paint Focused !(screen))
-      handleEffects
+      liftUpdate
       init
-  where
-    handleEffects : actionT -> stateT -> IO (Either stateT valueT)
-    handleEffects action state = case onAction action state of
-      Update     => pure $ Model.update action state
-      Run effect => pure $ Model.update action !effect
 
-  ||| Run a top-level application component.
+  ||| Run a top-level MVC statck.
   |||
-  ||| Use this entry point when you want to use the component abstraction.
-  |||
-  ||| @ sources   any additional event sources beyond keyboard input.
-  ||| @ onAction  a function to run your side-effecting operations here
-  ||| @ init      the initial component state.
+  ||| Use this entry point if your top-level state implements the
+  ||| component interface.
   covering export
   runComponent
     :  Component stateT valueT actionT
     => (sources : List (EventSource stateT (Response valueT actionT)))
-    -> (onAction : actionT -> stateT -> Effect stateT)
     -> stateT
     -> IO (Maybe valueT)
-  runComponent sources onAction init =
-    runMVC {viewImpl = componentViewImpl} -- XXX: why do I need this?
-      sources
-      liftAction
-      init
-    where
-      liftAction : Response valueT actionT -> stateT -> Effect stateT
-      liftAction Ignore      _     = Update
-      liftAction (Yield x)   _     = Update
-      liftAction (Do action) state = onAction action state
+  runComponent sources init = runMVC sources init

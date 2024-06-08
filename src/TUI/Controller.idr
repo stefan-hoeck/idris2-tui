@@ -17,6 +17,7 @@ import Data.Fin
 import Data.List
 import Data.SortedMap
 import public TUI.Event
+import public TUI.Model
 import Util
 import Zipper
 
@@ -24,26 +25,49 @@ import Zipper
 %default total
 
 
-||| Determine which action to take in response to input.
+||| Application-supplied response to an input event.
+|||
+||| @ Ignore Don't do anything in response to this event
+||| @ Yield  Yield a value to the parent controller or runtime.
+||| @ Do     Update the model via an action.
 public export
-interface Controller selfT actionT where
+data Response valueT actionT
+  = Ignore
+  | Yield (Maybe valueT)
+  | Do actionT
+  | Run (IO actionT)
+
+||| The result of updating a component
+|||
+||| This is the
+public export
+0 Result : Type -> Type -> Type
+Result stateT valueT = Either stateT (Maybe valueT)
+
+||| Determine which action to take in response to an input.
+public export
+interface Controller stateT valueT actionT | stateT where
   ||| Decide what action to take next
-  handle : Key -> selfT -> actionT
+  handle : Key -> stateT -> Response valueT actionT
 
-||| A function : `Key -> actionT` is implicitly a stateless controller.
+||| Handle common path for controller Response.
+|||
+||| This saves having to specify these cases in every Model implementation.
 export
-Controller (Key -> actionT) actionT where
-  handle key self = self key
+liftUpdate
+  :  Model stateT actionT
+  => Response valueT actionT
+  -> stateT
+  -> IO (Result stateT valueT)
+liftUpdate Ignore       self = pure $ Left self
+liftUpdate (Yield x)    _    = pure $ Right x
+liftUpdate (Do action)  self = pure $ Left $ Model.update action self
+liftUpdate (Run effect) self = pure $ Left $ Model.update !effect self
 
-||| A dynamic dispatch cell for an arbitrary controller.
-public export
-record Dynamic actionT where
-  constructor Dyn
-  {auto 0 innerT : Type}
-  inner : innerT
-  {auto impl : Controller innerT actionT}
-
-||| Implement controller for dynamic
+||| Map over the functions action type.
 export
-Controller (Dynamic actionT) actionT where
-  handle key self = handle @{self.impl} key self.inner
+Functor (Response valueT) where
+  map f Ignore    = Ignore
+  map f (Yield x) = Yield x
+  map f (Do x)    = Do (f x)
+  map f (Run x)   = Run [| f x |]

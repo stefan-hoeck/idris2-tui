@@ -94,8 +94,11 @@ export partial
 getWeight : String -> IO (Either String Weight)
 getWeight path = do
   Just buf <- newBuffer 6 | Nothing => pure $ Left "Couldn't allocate buffer"
-  withFile path Read onError (loopN buf 5 Nothing)
+  withFile path Read onError (loopN buf discardCount Nothing)
   where
+    discardCount : Nat
+    discardCount = 5
+
     loopN : Buffer -> Nat -> Maybe Weight -> File -> IO (Either String Weight)
     loopN buf Z     r file = pure $ maybeToEither "impossible" r
     loopN buf (S n) r file = do
@@ -141,34 +144,25 @@ export partial
 spawn : String -> (Result -> IO Builtin.Unit) -> IO ThreadID
 spawn path post = fork (run post path)
 
-namespace Container
-  %hide Measures.Unit
-
-  View Container where
-    -- size here is just a guess, but it should be a fixed grid
-    -- up to 13 chars for the barcode, plus padding
-    -- 10 digits each for gross, tear, and net
-    size _ = MkArea (14 + 10 + 10 + 10) 1
-
-    paint state window self = do
-      let (top,     bottom) = vsplit window 1
-      let (barcode, top   ) = hsplit top 13
-      let (tear,    top   ) = hsplit top 10
-      let (gross,   net   ) = hsplit top 10
-      paint state barcode self.id
-      paint state tear    self.tear
-      paint state gross   self.gross
-      paint state net     self.net
-
 namespace SmartScale
+  {- XXX: I've had to do this a few times, and argues for renaming
+     `Measures.Unit` to something else, in spite of the fact that
+     this is the proper name. Unfortunately, `Unit` is specal in
+     Idris, as it is what `()` desugars to. So when Measures.Unit is
+     in scope, it picks up this, and causes issues. `Unit` should
+     perhaps be considered a reserved word in light of this. -}
+  %hide Measures.Unit
   ||| An MVP of my "Smart Scale" concept
   |||
-  ||| Basically: we have a list of containers and a digital scale.
+  ||| Basically: we have a list of containers, a web server that
+  ||| allows for image uploads from a mobile phone, and a digital
+  ||| scale.
   |||
   ||| We can tear each container independently.
   |||
-  ||| We can store initial and final weights, so at a glance you can
-  ||| see the how much you have added or removed from each container.
+  ||| We can store initial and final weights, so that at a glance you
+  ||| can see the how much you have added or removed from each
+  ||| container.
   |||
   ||| Explanation of User Interaction
   |||
@@ -187,136 +181,112 @@ namespace SmartScale
   |||   - escape will reset both weights
   record SmartScale where
     constructor MkSmartScale
-    containers : Zipper Container
+    containers : VList Container Void
     scale      : Result
-    barcode    : Editor String TextInput
-    image      : String
+    barcode    : Editor String TextInput TextInput.Action
+    image      : Either String Image
 
-  ||| These are the global actions for this component.
   data Action
-    = Prev
-    | Next
-    | Tear
-    | Store
-    | Reset
-    | Barcode (Editor.Action String TextInput.Action)
+    = Containers (VList.Action Container Void)
+    | Barcode (Editor.Action TextInput.Action)
     | SetScale Result
-    | SetImage String
+    | SetImage (Either String Image)
 
-  ||| Update the selected container by the application of `f`
-  updateSelected : (Container -> Container) -> SmartScale -> SmartScale
-  updateSelected f = { containers $= update f }
-
-  ||| Check whether user has entered a valid barcode
-  validateBarcode : SmartScale -> Maybe Barcode
-  validateBarcode self = fromDigits $ toString !self.barcode
-
-  ||| Select or add the current barcode to the container list
-  select : SmartScale -> SmartScale
-  select self = case validateBarcode self of
-    Nothing => self
-    Just bc@(User id) => {
-      containers $= findOrInsert (hasBarcode bc) (empty id Reusable),
-      barcode := Nothing
-    } self
-    Just food => self
-
-  ||| Apply `f` to `x` if the given result is a weight
+  ||| Construct the action to try and select the entered barcode characters.
   |||
-  ||| If the given Result isn't a valid weight, returns the original
-  ||| value.
+  ||| This is some tricky logic that needs to look at the whole state.
+  select : Maybe String -> SmartScale -> Response _ SmartScale.Action
+  select bc self = case join $ validateBarcode <$> bc of
+    -- barcode is invalid, but we still need to clear the barcode chars
+    Nothing => Do $ Barcode Rollback
+    -- valid user barcode (which is a container id), select or add.
+    Just (User bc) => Do $
+      Containers $
+      FindOrInsert (hasBarcode (User bc)) (empty bc Reusable)
+    -- valid food barcode, just do our best to select it.
+    -- XXX: if it's not present, or there's multiple matches, we
+    -- should pop up a dialog, but that's not yet possible.
+    Just bc => Do $ Containers $ Find (hasBarcode bc)
+  where
+    validateBarcode : String -> Maybe Barcode
+    validateBarcode value = fromDigits value
+
+  ||| Helper to construct actions which depend on current weight.
+  |||
+  ||| The common logic is that if the current scale `Result` is not a
+  ||| `Weight`, then don't do *anything*. Otherwise, update the
+  ||| current container with the appropriate function partially
+  ||| applied to the given weight.
   public export
   withCurrentWeight
     :  (Weight -> Container -> Container)
     -> SmartScale
-    -> SmartScale
+    -> Response (List Container) SmartScale.Action
   withCurrentWeight f self = case self.scale of
-    Ok weight => updateSelected (f weight) self
-    _         => self
+    Ok weight => Do $ Containers $ Update (f weight)
+    _         => Ignore
 
-{-
-  ||| Handles events when the barcode input is not active
+  ||| Model implementation for SmartScale
   |||
-  ||| Receiving a '*' will give focus to the barcode input.
-  handleDefault : Key -> SmartScale -> Response (Maybe ()) TUI.Action
-  handleDefault (Alpha 'q') self = Yield Nothing
-  handleDefault (Alpha 't') self = withWeight case self.scale of
-    Do Tear
-  handleDefault (Alpha 's') self = Do Store
-  handleDefault (Alpha 'r') self = Do Reset
-  handleDefault (Alpha _)   self = Ignore
-  handleDefault Left        self = Ignore
-  handleDefault Right       self = Ignore
-  handleDefault Up          self = Do Next
-  handleDefault Down        self = Do Prev
-  handleDefault Delete      self = Do Tear
-  handleDefault Enter       self = Do Store
-  handleDefault Tab         self = Do Next
-  handleDefault Escape      self = Yield Nothing
- -}
+  ||| Dispatch actions by subcomponent, plus accepting results from
+  ||| the scale, and images from the web server.
+  Model SmartScale SmartScale.Action where
+    -- pardon the long line.
+    update (Containers action) self = {containers $= update action, barcode $= rollback} self
+    update (Barcode  action)   self = {barcode    $= update action} self
+    update (SetScale result)   self = {scale      := result}        self
+    update (SetImage sixel)    self = {image      := sixel}         self
 
-  ||| Handle nested updates to the barcode field.
-  |||
-  ||| XXX: Hopefully this points the way toward how to nest components.
-  updateBarcode
-    : TextInput.Action
-    -> SmartScale
-    -> Result SmartScale (List Container)
-  updateBarcode action self = case Component.update (Do action) self.barcode of
-    xxx => ?hole
-
-  ||| Implement Component for our SmartScale
-  Component SmartScale (List Container) SmartScale.Action where
-    update Prev              self = Left $ { containers $= goLeft }  self
-    update Next              self = Left $ { containers $= goRight } self
-    update Tear              self = Left $ withCurrentWeight setTear  self
-    update Store             self = Left $ withCurrentWeight setGross self
-    update Reset             self = Left $ updateSelected reset self
-    update BarcodeBegin      self = Left $ { barcode := empty } self
-    update (BarcodeKey a)    self = updateBarcode a self
-    update (SetScale result) self = Left $ { scale   := result } self
-    update (SetImage sixel)  self = Left $ { image   := sixel }  self
-
-    size self = MkArea 23 (length self.containers + 4)
+  ||| View impl just renders the subcomponents.
+  View SmartScale where
+    size self = hunion (MkArea 23 4) (size self.containers)
     paint state window self = do
       let (top, bottom) = vdivide window 3
       hpane
         Normal
         top
         self.image
-        (Util.Data.Either.fromMaybe
-          "Scan or Type '*' to enter barcode"
-          self.barcode)
+        self.barcode
         23
       -- xxx: document sixel stuff
       hline top.sw top.size.width
-      case self.containers.left of
-        Lin => do
-          paint @{string} Focused bottom "Barcode      Tear      Gross     Net "
-        xs => do
-          bottom <- packTop @{string} Normal bottom "Barcode      Tear      Gross     Net "
-          ignore $ paint @{vertical} state bottom self.containers
+      paint state bottom self.containers
 
+  ||| All the fun stuff is in here.
+  |||
+  ||| Note: all the events are handled at this level. Although the
+  ||| type is composed of subcomponents, we don't dispatch to the
+  ||| component handlers, as I want tighter control, and to avoid some
+  ||| modal behavior.
+  Controller SmartScale (List Container) SmartScale.Action where
     -- '*' always sets the barcode input to an empty buffer
     -- this way, if the barcode scanner is used on a partial buffer,
     -- we clear it before accepting chars from the scanner.
-    handle (Alpha '*') self = Update $ { barcode := Just (empty Select) } self
+    handle (Alpha '*') self = Do $ Barcode $ Edit
     handle key self = case self.barcode of
-      -- if the barcode view is present, it get focus
-      Just barcode => case handle key barcode of
-        (Update x)  => Update $ { barcode := Just x } self
-        Exit        => Update $ { barcode := Nothing } self
-        (Do x)      => Do x
-      -- if not, we handle them here.
-      Nothing      => handleDefault key self
-
-{-
+      barcode@(Editing x y) => case handle key barcode of
+        Ignore      => Ignore
+        (Yield bc)  => select bc self
+        (Do z)      => Do $ Barcode z
+        (Run z)     => Run $ do pure $ Barcode !z
+      _ => case key of
+        (Alpha 'q') => Yield $ Just $ toList self.containers
+        (Alpha 'r') => Do $ Containers $ Update reset
+        (Alpha 's') => withCurrentWeight setGross self
+        (Alpha 't') => withCurrentWeight setTear  self
+        (Alpha _)   => Ignore
+        Left        => Ignore
+        Right       => Ignore
+        Up          => Do $ Containers Prev
+        Down        => Do $ Containers Next
+        Delete      => Do $ Containers Delete
+        Enter       => withCurrentWeight setGross self
+        Tab         => Do $ Containers Next
+        Escape      => Yield Nothing
 
   ||| Update the current scale value when we receive a new packet.
-  export
-  onScale : List Bits8 -> SmartScale -> IO SmartScale
-  onScale result self = do
-    pure $ Left $ {scale := decode result} self
+  onScale : List Bits8 -> SmartScale -> Response _ SmartScale.Action
+  onScale result self = Do $ SetScale (decode result)
 
   ||| Render the given image path in sixel format when we receive an image event.
   |||
@@ -324,10 +294,27 @@ namespace SmartScale
   ||| here, so we have to choose a fixed image size to render to. But
   ||| apparently it's important not call out to a subprocess while
   ||| rendering.
-  onImage : String -> SmartScale -> IO SmartScale
-  onImage path self = do
-    (sixel, code) <- assert_total $ run ["chafa", "-s", "20", "upload/decoded.0"]
-    pure $ Left $ { image := sixel } self
+  onImage : String -> SmartScale -> Response _ SmartScale.Action
+  onImage path self = Run $ do
+    -- XXX: can use Image type now.
+    case !(sixelFromPath path (MkArea 20 40)) of
+      Nothing => pure $ SetImage $ Left "Error Decoding Image"
+      Just sixel => pure $ SetImage $ Right sixel
+  ||| Create a new SmartScale with the given list of containers.
+  export
+  smartscale : List Container -> SmartScale
+  smartscale containers = MkSmartScale {
+      containers = fromList header (const Ignore) containers,
+      scale      = Empty,
+      barcode    = empty "Scan or Type '*' to enter barcode",
+      image      = Left "No Image" -- xxx: replace with qr code for URL to server.
+  } where
+    header : String
+    header = "Barcode      Tear      Gross     Net "
+
+  export covering
+  run : IO ()
+  run = ignore $ runMVC [On "Scale" onScale, On "Image" onImage] (smartscale [])
 
 ||| Entry point for basic scale command.
 export partial
@@ -335,13 +322,4 @@ main : List String -> IO Builtin.Unit
 main ("--once" :: path :: _) = do
   weight <- getWeight path
   putStrLn $ show weight
-main _ = pure ()
-
-main _ = do
-  _ <- runComponent
-    [
-     On "Scale" onScale,
-     On "Image" onImage
-    ]
-    (MkSmartScale empty Empty Nothing "No image")
-  pure ()
+main _ = run
