@@ -34,8 +34,8 @@ data Action actionT
 public export
 data Editor valueT editorT actionT
   = Empty String
-  | Editing editorT (Maybe valueT)
-  | Accepted valueT (Maybe editorT)
+  | Editing editorT (Maybe valueT)  String
+  | Accepted valueT (Maybe editorT) String
 
 ||| Defines how to create an editor for a value.
 public export
@@ -61,9 +61,9 @@ export
   :  Editable valueT editorT actionT
   => Editor valueT editorT actionT
   -> Maybe valueT
-(.value) (Empty _)       = Nothing
-(.value) (Editing  x y)  = toValue x <+> y
-(.value) (Accepted x y)  = Just x
+(.value) (Empty        _) = Nothing
+(.value) (Editing  x y _) = toValue x <+> y
+(.value) (Accepted x y _) = Just x
 
 ||| Construct an empty editor.
 export
@@ -72,16 +72,17 @@ empty placeholder = Empty placeholder
 
 ||| Construct an editor initialized to a value.
 export
-accepted : a -> Editor a _ _
-accepted value = Accepted value Nothing
+accepted : a -> String -> Editor a _ _
+accepted value placeholder = Accepted value Nothing placeholder
 
 ||| Construct an editor in the editing state.
 export
 editing
   :  Editable valueT editorT actionT
   => valueT
+  -> String
   -> Editor valueT editorT actionT
-editing value = Editing (fromValue value) (Just value)
+editing value ph = Editing (fromValue value) (Just value) ph
 
 ||| Transition to the editing state.
 |||
@@ -94,10 +95,10 @@ edit
   :  Editable valueT editorT actionT
   => Editor valueT editorT actionT
   -> Editor valueT editorT actionT
-edit (Empty _)             = Editing (blank {valueT = valueT}) Nothing
-edit (Accepted v Nothing)  = Editing (fromValue v)             (Just v)
-edit (Accepted v (Just e)) = Editing e                         (Just v)
-edit self                  = self
+edit (Empty               ph) = Editing (blank {valueT = valueT}) Nothing  ph
+edit (Accepted v Nothing  ph) = Editing (fromValue v)             (Just v) ph
+edit (Accepted v (Just e) ph) = Editing e                         (Just v) ph
+edit self                     = self
 
 ||| Try to transition to the Accepted state with the current value.
 |||
@@ -108,9 +109,9 @@ commit
   :  Editable valueT editorT actionT
   => Editor valueT editorT actionT
   -> Editor valueT editorT actionT
-commit self@(Editing e v) = case toValue e of
+commit self@(Editing e v ph) = case toValue e of
   Nothing => self
-  Just v  => Accepted v (Just e)
+  Just v  => Accepted v (Just e) ph
 commit self = self
 
 ||| Leave the editing state, restoring previous value if present.
@@ -119,9 +120,9 @@ rollback
   :  Editable valueT editorT actionT
   => Editor valueT editorT actionT
   -> Editor valueT editorT actionT
-rollback (Editing _ Nothing)  = Empty "(empty)"
-rollback (Editing e (Just v)) = Accepted v (Just e)
-rollback self                 = self
+rollback (Editing _ Nothing  ph) = Empty ph
+rollback (Editing e (Just v) ph) = Accepted v (Just e) ph
+rollback self                    = self
 
 ||| Update the editor by applying the inner action.
 lift
@@ -130,8 +131,8 @@ lift
   -> Editor valueT editorT actionT
   -> Editor valueT editorT actionT
 lift action self = case self of
-  Editing e v => Editing (Model.update action e) v
-  _     => self
+  Editing e v ph => Editing (Model.update action e) v ph
+  _              => self
 
 export
 implementation
@@ -145,23 +146,23 @@ where
 
 export
 Editable valueT editorT actionT => View (Editor valueT editorT actionT) where
-  size (Empty placeholder) = size placeholder
-  size (Editing e _)       = size e
-  size (Accepted value _)  = size value
+  size (Empty placeholder)  = size placeholder
+  size (Editing e _ _)      = size e
+  size (Accepted value _ _) = size value
 
   paint state window self = case self of
     (Empty    placeholder) => paint state window placeholder
-    (Editing  editor _)    => paint state window editor
-    (Accepted value _)     => paint state window value
+    (Editing  editor _ _)  => paint state window editor
+    (Accepted value _ _)   => paint state window value
 
 export
 implementation
      Editable valueT editorT actionT
   => Controller (Editor valueT editorT actionT) valueT (Editor.Action actionT)
 where
-  handle key  (Editing editor _) = Lift <$> handle key editor
-  handle Enter _                 = Do Edit
-  handle _     _                 = Ignore
+  handle key  (Editing editor _ _) = Lift <$> handle key editor
+  handle Enter _                   = Do Edit
+  handle _     _                   = Ignore
 
 export
 editorViewImpl

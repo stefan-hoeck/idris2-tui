@@ -264,7 +264,7 @@ namespace SmartScale
     -- we clear it before accepting chars from the scanner.
     handle (Alpha '*') self = Do $ Barcode $ Edit
     handle key self = case self.barcode of
-      barcode@(Editing x y) => case handle key barcode of
+      barcode@(Editing x y _) => case handle key barcode of
         Ignore      => Ignore
         (Yield bc)  => select bc self
         (Do z)      => Do $ Barcode z
