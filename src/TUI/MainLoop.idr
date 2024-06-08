@@ -43,11 +43,11 @@ restoreCursor = putStr "\ESC8"
 
 ||| synchronous update Supported by iTerm2 and other fancy terminals
 beginSyncUpdate : IO ()
-beginSyncUpdate = putStr "\ESC[?2026h"
+beginSyncUpdate = putStrLn "\ESC[?2026h"
 
 ||| synchronous update supported by iTerm2 and other fancy terminals
 endSyncUpdate : IO ()
-endSyncUpdate = putStr "\ESC[?2026l"
+endSyncUpdate = putStrLn "\ESC[?2026l"
 
 
 ||| This is the current mainloop stack.
