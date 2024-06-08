@@ -184,13 +184,13 @@ namespace SmartScale
     containers : VList Container Void
     scale      : Result
     barcode    : Editor String TextInput TextInput.Action
-    image      : Either String Image
+    image      : Image
 
   data Action
     = Containers (VList.Action Container Void)
     | Barcode (Editor.Action TextInput.Action)
     | SetScale Result
-    | SetImage (Either String Image)
+    | SetImage Image
 
   ||| Construct the action to try and select the entered barcode characters.
   |||
@@ -241,16 +241,20 @@ namespace SmartScale
   View SmartScale where
     size self = hunion (MkArea 23 4) (size self.containers)
     paint state window self = do
-      let (top, bottom) = vdivide window 3
-      hpane
-        Normal
-        top
-        self.image
-        self.barcode
-        23
-      -- xxx: document sixel stuff
-      hline top.sw top.size.width
-      paint state bottom self.containers
+      window <- packLeft Normal  window self.image
+      window <- packLeft state'  window VRule
+      window <- packTop  Normal  window $ show self.scale
+      window <- packTop  bcState window self.barcode
+      window <- packTop  state'  window HRule
+      ignore $  packTop  state   window self.containers
+    where
+      state' : State
+      state' = demoteFocused state
+
+      bcState : State
+      bcState = case self.barcode of
+        Editing _ _ _ => Focused
+        _             => Disabled
 
   ||| All the fun stuff is in here.
   |||
@@ -294,12 +298,12 @@ namespace SmartScale
   ||| here, so we have to choose a fixed image size to render to. But
   ||| apparently it's important not call out to a subprocess while
   ||| rendering.
+  covering
   onImage : String -> SmartScale -> Response _ SmartScale.Action
   onImage path self = Run $ do
-    -- XXX: can use Image type now.
-    case !(sixelFromPath path (MkArea 20 40)) of
-      Nothing => pure $ SetImage $ Left "Error Decoding Image"
-      Just sixel => pure $ SetImage $ Right sixel
+    sixel <- sixelFromPath path "Decode Error" (MkArea 20 40)
+    pure $ SetImage sixel
+
   ||| Create a new SmartScale with the given list of containers.
   export
   smartscale : List Container -> SmartScale
@@ -307,11 +311,13 @@ namespace SmartScale
       containers = fromList header (const Ignore) containers,
       scale      = Empty,
       barcode    = empty "Scan or Type '*' to enter barcode",
-      image      = Left "No Image" -- xxx: replace with qr code for URL to server.
+      -- xxx: qr code for URL to server.
+      image      = placeholder "No Image" (MkArea 20 40)
   } where
     header : String
     header = "Barcode      Tear      Gross     Net "
 
+  ||| Main entry point
   export covering
   run : IO ()
   run = ignore $ runMVC [On "Scale" onScale, On "Image" onImage] (smartscale [])

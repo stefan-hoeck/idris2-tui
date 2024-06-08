@@ -43,11 +43,11 @@ restoreCursor = putStr "\ESC8"
 
 ||| synchronous update Supported by iTerm2 and other fancy terminals
 beginSyncUpdate : IO ()
-beginSyncUpdate = putStrLn "\ESC[?2026h"
+beginSyncUpdate = putStr "\ESC[?2026h"
 
 ||| synchronous update supported by iTerm2 and other fancy terminals
 endSyncUpdate : IO ()
-endSyncUpdate = putStrLn "\ESC[?2026l"
+endSyncUpdate = putStr "\ESC[?2026l"
 
 
 ||| This is the current mainloop stack.
@@ -106,6 +106,7 @@ namespace InputShim
       moveTo origin
       render state
       endSyncUpdate
+      fflush stdout
 
       next <- getLine
       next' <- case decodeNext next sources of
