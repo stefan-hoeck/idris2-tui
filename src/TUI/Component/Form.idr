@@ -7,8 +7,6 @@ import public Data.Vect
 import public Data.Vect.Quantifiers
 
 import TUI.View
-import TUI.View.Container
-import TUI.View.Dynamic
 import Util
 import Zipper
 
