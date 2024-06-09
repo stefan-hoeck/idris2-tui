@@ -19,7 +19,6 @@ import Data.SortedMap
 import public TUI.Event
 import public TUI.Model
 import Util
-import Zipper
 
 
 %default total

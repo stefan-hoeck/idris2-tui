@@ -8,7 +8,7 @@ import public Data.Vect.Quantifiers
 
 import TUI.View
 import Util
-import Zipper
+import TUI.Zipper
 
 
 %default total

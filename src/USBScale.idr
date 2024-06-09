@@ -20,7 +20,6 @@ import System
 import System.File
 import TUI
 import Util
-import Zipper
 
 
 %language ElabReflection

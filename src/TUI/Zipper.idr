@@ -1,11 +1,15 @@
-||| Application-specific zipper for JSON data
+||| A useful data-structure for interactive functional programs.
 |||
-module Zipper
+||| There are two concrete implementations:
+||| - List.Zipper, for flat lists of a single item.
+||| - Huet.Zipper, for trees, based on Huet's original paper.
+module TUI.Zipper
 
 
+import Data.List1
 import Data.SnocList
-import Util
 import Derive.Prelude
+import Util
 
 
 %default total
@@ -199,15 +203,15 @@ namespace Huet
   ||| occurrence in the tree, ... rather [it is] a pointer to the arc
   ||| linking the designated subtree to the surrounding context.
   export
-  record Cursor item where
+  record Zipper item where
     constructor Loc
     subtree: Tree item
     path: Path item
-  %runElab derive "Cursor" [Show]
+  %runElab derive "Zipper" [Show]
 
   ||| Move the zipper to the left.
   export
-  goLeft : Cursor item -> Either String (Cursor item)
+  goLeft : Zipper item -> Either String (Zipper item)
   goLeft (Loc t p) = case p of
     Top                       => Left "Left of Top"
     Node (l :: left) up right => Right $ Loc l $ Node left up $ t :: right
@@ -215,7 +219,7 @@ namespace Huet
 
   ||| Move the zipper to the right.
   export
-  goRight : Cursor item -> Either String (Cursor item)
+  goRight : Zipper item -> Either String (Zipper item)
   goRight (Loc t p) = case p of
     Top                       => Left "Right of Top"
     Node left up (r :: right) => Right $ Loc r $ Node (t :: left) up right
@@ -223,14 +227,14 @@ namespace Huet
 
   ||| Move the zipper upwards
   export
-  goUp : Cursor item -> Either String (Cursor item)
+  goUp : Zipper item -> Either String (Zipper item)
   goUp (Loc t p) = case p of
     Top                => Left "Up from Top"
     Node left up right => Right $ Loc (Section $ reverse left ++ t :: right) up
 
   ||| Move the zipper down
   export
-  goDown : Cursor item -> Either String (Cursor item)
+  goDown : Zipper item -> Either String (Zipper item)
   goDown (Loc t p) = case t of
     Item    _             => Left "Down from Item"
     Section (t1 :: trees) => Right $ Loc t1 $ Node [] p trees
@@ -238,39 +242,39 @@ namespace Huet
 
   ||| Get the nth child of the current tree.
   export
-  nth : Cursor item -> Nat -> Either String (Cursor item)
+  nth : Zipper item -> Nat -> Either String (Zipper item)
   nth loc 0     = Left "Ntth Expects a positive integer"
   nth loc 1     = goDown  loc
   nth loc (S n) = goRight !(nth loc n)
 
   ||| Mutate the structure at the current location.
   export
-  update : Cursor item -> Tree item -> Cursor item
+  update : Zipper item -> Tree item -> Zipper item
   update (Loc _ p) t = Loc t p
 
   export
-  insert : Cursor item -> Tree item -> Either String (Cursor item)
+  insert : Zipper item -> Tree item -> Either String (Zipper item)
   insert l t = Right $ update l t
 
   export
-  insertRight : Cursor item -> Tree item -> Either String (Cursor item)
+  insertRight : Zipper item -> Tree item -> Either String (Zipper item)
   insertRight (Loc t p) r = case p of
     Top                => Left "Insert above top"
     Node left up right => Right $ Loc t $ Node left up $ r :: right
   export
-  insertLeft : Cursor item -> Tree item -> Either String (Cursor item)
+  insertLeft : Zipper item -> Tree item -> Either String (Zipper item)
   insertLeft (Loc t p) r = case p of
     Top                => Left "Insert above top"
     Node left up right => Right $ Loc t $ Node left up right
 
   export
-  insertDown : Cursor item -> Tree item -> Either String (Cursor item)
+  insertDown : Zipper item -> Tree item -> Either String (Zipper item)
   insertDown (Loc t p) r = case t of
     Item _             => Left "Insert below leaf"
     Section children   => Right $ Loc t $ Node [] p children
 
   export
-  delete : Cursor item -> Either String (Cursor item)
+  delete : Zipper item -> Either String (Zipper item)
   delete (Loc _ p) = case p of
     Top   => Left "Delete of Top"
     Node left up  (r :: right) => Right $ Loc r $ Node left up right
@@ -303,7 +307,7 @@ namespace Huet
     ignoreErrs _   (Right r) = (Nothing, r)
 
     export
-    test : Key -> Result (Cursor Char) -> Maybe (Result (Cursor Char))
+    test : Key -> Result (Zipper Char) -> Maybe (Result (Zipper Char))
     test (Alpha c) (_, cursor) = Just $ ignoreErrs cursor $ insert  cursor (Item c)
     test Right     (_, cursor) = Just $ ignoreErrs cursor $ goRight cursor
     test Left      (_, cursor) = Just $ ignoreErrs cursor $ goLeft  cursor

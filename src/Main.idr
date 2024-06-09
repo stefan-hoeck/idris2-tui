@@ -21,7 +21,6 @@ module Main
 import System
 import Inventory
 import USBScale
-import Zipper
 import TUI
 import Editor
 

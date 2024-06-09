@@ -13,7 +13,6 @@ import Data.Vect
 import Data.Vect.Quantifiers
 import TUI.Component
 import Util
-import Zipper
 
 
 %default total
