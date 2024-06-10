@@ -35,15 +35,15 @@ placeholder alt size = MkImage size Nothing alt
 |||
 ||| There is no way to control the clipping of this image.
 export
-putImage : Pos -> Image -> IO ()
+putImage : Pos -> Image -> Context ()
 putImage pos self = do
   moveTo pos
   case self.contents of
     Nothing => do
-      fflush stdout
-      putStr self.altText
-      fflush stdout
-    Just contents => putStr contents
+      cheat $ fflush stdout
+      cheat $ putStr self.altText
+      cheat $ fflush stdout
+    Just contents => cheat $ putStr contents
 
 ||| Render a sixel image from the given file name.
 |||

@@ -20,7 +20,7 @@ sizeVertical self = foldl (flip $ hunion . size) (MkArea 0 0) self
 |||
 ||| Return the remaning space in the window.
 export
-packTop : View v => State -> Rect -> v -> IO Rect
+packTop : View v => State -> Rect -> v -> Context Rect
 packTop state window self = do
   let split = (size self).height
   let (top, bottom) = vsplit window split
@@ -35,7 +35,7 @@ paintVertical
   => (state   : State)
   -> (window  : Rect)
   -> (self    : List v)
-  -> IO Rect
+  -> Context Rect
 paintVertical state window [] = pure window
 paintVertical state window (x :: xs) = paintVertical state !(packTop state window x) xs
 
@@ -48,7 +48,7 @@ sizeHorizontal self = foldl (flip $ vunion . size) (MkArea 0 0) self
 |||
 ||| Return the remaning space in the window.
 export
-packLeft : View v => State -> Rect -> v -> IO Rect
+packLeft : View v => State -> Rect -> v -> Context Rect
 packLeft state window self = do
   let split = (size self).width
   let (left, right) = hdivide window split
@@ -63,7 +63,7 @@ paintHorizontal
   => (state   : State)
   -> (window  : Rect)
   -> (self    : List v)
-  -> IO Rect
+  -> Context Rect
 paintHorizontal state window [] = pure window
 paintHorizontal state window (x :: xs) = paintHorizontal state !(packLeft state window x) xs
 
@@ -91,7 +91,7 @@ hpane
   -> leftT
   -> rightT
   -> Nat
-  -> IO ()
+  -> Context ()
 hpane state window left right split = do
   let (l_window, r_window) = hdivide window split
   paint state l_window left

@@ -67,14 +67,13 @@ View TextInput where
     sgr [Reset]
   -- when focused, show the cursor position in the string.
   paint Focused rect self = do
-    moveTo rect.nw
-    putStr $ kcap $ self.chars.left
+    showTextAt rect.nw $ kcap $ self.chars.left
     reverseVideo
-    putStr $ case self.chars.right of
+    cheat $ putStr $ case self.chars.right of
       [] => " "
       x :: _ => singleton x
     unreverseVideo
-    putStr $ pack $ tail self.chars.right
+    cheat $ putStr $ pack $ tail self.chars.right
 
 ||| Implement Component for TextInput.
 export

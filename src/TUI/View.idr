@@ -33,7 +33,7 @@ namespace State
 
   ||| Default styles for rendering text
   export
-  styleForState : State -> IO ()
+  styleForState : State -> Context ()
   styleForState Normal   = sgr [Reset]
   styleForState Focused  = reverseVideo
   styleForState Disabled = sgr [SetStyle Faint]
@@ -42,7 +42,7 @@ namespace State
   |||
   ||| Completely resets the graphics context after painting.
   export
-  withState : State -> IO () -> IO ()
+  withState : State -> Context () -> Context ()
   withState state wrapped = do
     styleForState state
     wrapped
@@ -60,7 +60,7 @@ interface View selfT where
   size  : selfT -> Area
 
   ||| Draw the view into the given screen rectangle.
-  paint : State -> Rect -> selfT -> IO ()
+  paint : State -> Rect -> selfT -> Context ()
 
 ||| Implement `View` for `()` as a no-op
 export

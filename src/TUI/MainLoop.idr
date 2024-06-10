@@ -76,7 +76,7 @@ namespace InputShim
   covering
   runRaw
     :  (sources : List (EventSource stateT actionT))
-    -> (render  : stateT  -> IO Builtin.Unit)
+    -> (render  : stateT  -> Context Builtin.Unit)
     -> (update  : actionT -> stateT -> IO (Either stateT valueT))
     -> (init    : stateT)
     -> IO valueT
@@ -103,8 +103,10 @@ namespace InputShim
     loop state = do
       beginSyncUpdate
       clearScreen
-      moveTo origin
-      render state
+      present $ do
+        -- now a context operation, so it's nested in this monad.
+        moveTo origin
+        render state
       endSyncUpdate
       fflush stdout
 
@@ -126,7 +128,7 @@ namespace InputShim
   runTUI
     :  (onKey   : (Key -> stateT -> actionT))
     -> (sources : List (EventSource stateT actionT))
-    -> (render  : stateT -> IO Builtin.Unit)
+    -> (render  : stateT -> Context Builtin.Unit)
     -> (update  : actionT -> stateT -> IO (Either stateT valueT))
     -> (init    : stateT)
     -> IO valueT

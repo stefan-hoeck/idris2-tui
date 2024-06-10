@@ -23,39 +23,81 @@ import public TUI.Geometry
 
 %default total
 
+namespace Context
+  ||| A context for drawing to the terminal.
+  |||
+  ||| The eventual goal is to support tracking the sate of drawing
+  ||| attributes, so that we can tie them propely to lexical scope.
+  |||
+  ||| For now this is a simple wrapper around IO.
+  export
+  record Context a where
+    constructor C
+    action : IO a
+
+  ||| For now, Context is really just a wrapper around IO.
+  |||
+  ||| This escape hatch is to cover the cases we don't handle yet, in
+  ||| a way that's easy to grep for.
+  |||
+  ||| The eventual goal is to remove all uses of this function, making
+  ||| Context completely self-contained.
+  export
+  cheat : IO a -> Context a
+  cheat a = C a
+
+  ||| Paint the context to stdout.
+  export
+  present : Context a -> IO a
+  present (C a) = a
+
+  -- Make Context work with `do` notation --
+
+  export
+  Functor Context where
+    map f (C x) = C [| f x |]
+
+  export
+  Applicative Context where
+    pure a = C $ pure a
+    (C f) <*> (C x) = C (f <*> x)
+
+  export
+  Monad Context where
+    (C x) >>= f = C $ x >>= (.action) . f
 
 ||| Move the cursor to the given point
 export
-moveTo : Pos -> IO ()
-moveTo pos = putStr $ cursorMove pos.y pos.x
+moveTo : Pos -> Context ()
+moveTo pos = cheat $ putStr $ cursorMove pos.y pos.x
 
 ||| Draw text at the given point
 export
-showTextAt : Pos -> String -> IO ()
+showTextAt : Pos -> String -> Context ()
 showTextAt pos x = do
   moveTo pos
-  putStr x
+  cheat $ putStr x
 
 ||| Draw a single character at the given point.
 export
-showCharAt : Pos -> Char -> IO ()
+showCharAt : Pos -> Char -> Context ()
 showCharAt pos x = showTextAt pos (singleton x)
 
 ||| Undoes the above
 export
-unreverseVideo : IO ()
-unreverseVideo = putStr "\ESC[27m"
+unreverseVideo : Context ()
+unreverseVideo = cheat $ putStr "\ESC[27m"
 
 ||| This attribute isn't part of the ANSI library in contrib, but is
 ||| arguably more useful than setting explicit colors.
 export
-reverseVideo : IO ()
-reverseVideo = putStr "\ESC[7m"
+reverseVideo : Context ()
+reverseVideo = cheat $ putStr "\ESC[7m"
 
 ||| effectful version for setting arbitrary SGR attributes
 export
-sgr : List SGR -> IO ()
-sgr = putStr . escapeSGR
+sgr : List SGR -> Context ()
+sgr = cheat . putStr . escapeSGR
 
 
 ||| Definitions for box-drawing symbols
@@ -73,7 +115,7 @@ namespace Box
 
   ||| Draw the corresponding box character
   export
-  putAt : Pos -> Symbol -> IO ()
+  putAt : Pos -> Symbol -> Context ()
   putAt pos NW = showCharAt pos $ cast 0x250C
   putAt pos NE = showCharAt pos $ cast 0x2510
   putAt pos SW = showCharAt pos $ cast 0x2514
@@ -83,7 +125,7 @@ namespace Box
 
   ||| Draw a horizontal line
   export
-  hline : Pos -> Nat -> IO ()
+  hline : Pos -> Nat -> Context ()
   hline pos@(MkPos x y) width = do
     putAt pos H
     case width of
@@ -92,7 +134,7 @@ namespace Box
 
   ||| Draw a vertical line
   export
-  vline : Pos -> Nat -> IO ()
+  vline : Pos -> Nat -> Context ()
   vline pos@(MkPos x y) height = do
     putAt pos V
     case height of
@@ -101,10 +143,10 @@ namespace Box
 
   ||| Fill a rectangle with the given character
   export
-  fill : Char -> Rect -> IO ()
+  fill : Char -> Rect -> Context ()
   fill c box = loop box.size.height
     where
-      loop : Nat -> IO ()
+      loop : Nat -> Context ()
       loop Z = pure ()
       loop i@(S n) = do
         let pos = MkPos box.pos.x i
@@ -115,7 +157,7 @@ namespace Box
   |||
   ||| Use with `shrink` or `inset` to layout contents within the frame.
   export
-  box : Rect -> IO ()
+  box : Rect -> Context ()
   box r = do
     -- draw the lines at full size
     hline r.nw r.size.width

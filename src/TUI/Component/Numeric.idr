@@ -109,7 +109,7 @@ toString self = if self.sign
   else " \{digitsToString self.digits}"
 
 ||| Generic paint function for all variants of numeric widget.
-paintNumeric : Char -> State -> Rect -> Numeric a -> IO ()
+paintNumeric : Char -> State -> Rect -> Numeric a -> Context ()
 paintNumeric symbol state window self = do
   showCharAt window.nw symbol
   case state of
