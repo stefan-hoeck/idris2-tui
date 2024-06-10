@@ -114,6 +114,17 @@ export
 setGross : Weight -> Container -> Container
 setGross w = { gross := w }
 
+||| Update the tear weight by subtracting given net weight from the
+||| current gross weight.
+|||
+||| e.g. if we had `{ tear = 30.g, gross = 345.g }`, and gave a net of
+||| `320.g`, we'd get `{ tear = 25, gross = 345.g }`. This is used
+||| when adding new containers to the inventory, to allow the user to
+||| subtract the printed net weight from the scale weight.
+export
+setTearFromNet : Weight -> Container -> Container
+setTearFromNet net self = { tear := self.gross - net } self
+
 ||| Reset both weights to zero.
 export
 reset : Container -> Container

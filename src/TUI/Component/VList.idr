@@ -8,7 +8,7 @@ import TUI.Geometry
 import TUI.Layout
 import TUI.Painting
 import TUI.View
-import public Zipper
+import public TUI.Zipper.List
 
 
 %default total

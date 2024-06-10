@@ -8,7 +8,7 @@ import Data.Maybe
 import Data.String
 import TUI.Component
 import Util
-import TUI.Zipper
+import TUI.Zipper.List
 
 
 %default total
