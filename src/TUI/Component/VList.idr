@@ -1,4 +1,9 @@
 ||| An editable list of items with a vertical layout.
+|||
+||| XXX: There's no support for clipping or scrolling in this
+||| framework -:- if there's one component which could *really* use
+||| it, it's this one. Making this painlessly scrollable, even in a
+||| hacky way, is a high priority for this library to become usable.
 module TUI.Component.VList
 
 
@@ -13,13 +18,6 @@ import public TUI.Zipper.List
 
 %default total
 
-
-||| Helper function for update via fallible zipper methods
-updateJust
-  : (Zipper a -> Maybe (Zipper a))
-  -> Zipper a
-  -> Zipper a
-updateJust f self = fromMaybe self (f self)
 
 public export
 data Action itemT actionT
@@ -72,7 +70,7 @@ where
   update Prev               = {items $= goLeft}
   update Next               = {items $= goRight}
   update Home               = {items $= rewind}
-  update (Find p)           = {items $= updateJust (find p)}
+  update (Find p)           = {items $= find' p}
   update (FindOrInsert p d) = {items $= findOrInsert p d}
   update (Lift x)           = {items $= update (update x)}
 
@@ -88,7 +86,7 @@ where
   update Prev               = {items $= goLeft}
   update Next               = {items $= goRight}
   update Home               = {items $= rewind}
-  update (Find p)           = {items $= updateJust (find p)}
+  update (Find p)           = {items $= find' p}
   update (FindOrInsert p d) = {items $= findOrInsert p d}
   update (Lift x)             impossible
 

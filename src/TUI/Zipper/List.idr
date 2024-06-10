@@ -2,6 +2,7 @@ module TUI.Zipper.List
 
 
 import Data.List1
+import Data.Maybe
 import Data.SnocList
 import Util
 
@@ -133,6 +134,11 @@ seekRight p self@(Z l  (x :: xs))  = case p x of
   True  => Just $ goRight self
   False => seekRight p $ assert_smaller self $ goRight self
 
+||| Like `seekRight`, but returns the original if the operation fails.
+public export
+seekRight' : (a -> Bool) -> Zipper a -> Zipper a
+seekRight' p self = fromMaybe self $ seekRight p self
+
 ||| Advance right from the beginning, until p returns True.
 |||
 ||| If found, return a zipper with the cursor at the given
@@ -140,6 +146,11 @@ seekRight p self@(Z l  (x :: xs))  = case p x of
 public export
 find : (a -> Bool) -> Zipper a -> Maybe (Zipper a)
 find p self = seekRight p (rewind self)
+
+||| Like `find`, but returns the original if the operation fails.
+public export
+find' : (a -> Bool) -> Zipper a -> Zipper a
+find' p self = fromMaybe self $ find p self
 
 ||| Find an element satisfying some predicate, or insert a default element.
 |||
