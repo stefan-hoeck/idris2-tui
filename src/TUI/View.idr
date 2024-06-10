@@ -1,10 +1,11 @@
 ||| Minimalist terminal UI framework.
 |||
-||| A View is an interactive interface component. It knows how to
-||| paint itself, and it knows how to update itself in response to
-||| user input. It also can send signals upstream to the application.
+||| A `View` can render itself in ANSI-compatible output. Think of it
+||| like an enhanced version of `Show`, that knows about ANSI escape
+||| sequences, and keeps track of drawing state so you don't have to.
 |||
-||| XXX: Should it be renamed to `Widget` or something similar?
+||| You can implement `View` on your own types to use them with this
+||| library.
 module TUI.View
 
 
@@ -50,13 +51,13 @@ namespace State
 
 ||| A View can paint itself to the screen in 2D.
 |||
-||| - It has a drawing state: Focused, Unfocused, or Disabled.
-||| - It knows how to size itself, for layout purposes.
-||| - It can draw itself to the screen, using a window.
+||| - It knows its minimum size.
+||| - It knows how to style itself for each draw state.
+||| - It knows how to paint itself within a given window.
 public export
 interface View selfT where
   constructor MkView
-  ||| Calculate the "requested" size
+  ||| Calculate the minimum area for this view.
   size  : selfT -> Area
 
   ||| Draw the view into the given screen rectangle.
@@ -77,6 +78,9 @@ View String where
 |||
 ||| Unfortunately, this implementation will often 'win' when you don't
 ||| want it to, so it remains a named impl.
+|||
+||| Pass `@{show}` to functions expecting a `View` to use this
+||| implementation.
 export
 [show]
 Show a => View a where

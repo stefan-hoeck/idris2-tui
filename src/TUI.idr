@@ -1,68 +1,7 @@
 ||| Minimalist terminal UI framework.
 |||
-||| List of known supported terminals:
-||| - iTerm2
-||| - foot
-||| - kitty
-||| - alacritty
-|||
-||| List of unsupported terminals:
-||| - intelliJ (not tested)
-||| - tmux (no sync update, to investigate)
-||| - VTE terminals (not tested)
-||| - anything not mentioned above.
-|||
-||| In addition, for sixel image support, there's a soft dependency on
-||| `chafa` (an apt name) which I have no way to enforce. Distro
-||| maintainers take note.
-|||
-||| In comparison to ncurses, this library does direct drawing to the
-||| terminal. And so, there are no intermediate buffers. Moreover,
-||| there is no optimization of screen updates.
-|||
-||| Instead of optimizing updates, I use [Kitty's synchronous update
-||| protocol](tbd). This is merely ignored by unsupported terminals,
-||| so everything will still work, but you may notice flicker. If this
-||| bothers you, I appologize. Bear with me for the moment, or consider
-||| trying one of the supported terminals.
-|||
-||| For the moment, I don't want to implement buffers and differential
-||| updates:
-||| - It's not clear to me how that plays with sixel graphics
-||| - I'm not sure exactly what ANSI-like features I want to support
-||| - I don't want to go down that rabbit-hole just yet.
-||| - Ideally, such a heavy-weight solution would be opt-in.
-|||
-||| What you lose with this approach is direct support for overlapping
-||| windows. You can implement them by maintaining position and
-||| drawing order yourself, but you need to *manually* erase any
-||| underlying content you don't want showing through. `fill` is
-||| provided for this purpose.
-|||
-||| More tragically, there is no support for *clipping*. It's up to
-||| you to ensure you don't render out-of-bounds.
-|||
-||| And so, the drawing model favors a left-to-right, top-to-bottom
-||| drawing order, that is robust against the inability to clip
-||| updates to a region. Fortunately this dovetails with structural
-||| recursion. See `*split`, and `*divide` in `TUI.Geometry`
-||| module. Or see `pack*` and `paint*` in `TUI.View`.
-||| I can't get ncurses-idris working, so I'm rolling this pure-idris
-||| alternative.
-|||
-||| I plan to support this standard for [unambigous keyboard
-||| input](here). For now, if you want to send a literal escape, you
-||| must press escape twice.  I would welcome help implementing this,
-||| but I'll get to it eventually.
-|||
-||| Other limitations include:
-||| - no support for termcap or terminfo,
-|||   - and so, no facilities for graceful degredation.
-|||
-||| The primary advantage is sheer simplicity: no dependencies are
-||| required beyond `contrib`.
-|||
-||| This module is soon to become a stand-alone project.
+||| See README.md for a detailed explanation of the code in this
+||| package.
 module TUI
 
 import public TUI.Component

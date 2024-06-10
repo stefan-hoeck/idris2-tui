@@ -5,13 +5,39 @@
 ||| These routines are slightly higher-level than that provided by
 ||| `Control.ANSI`. In particular, we use types from `TUI.Geometry`.
 |||
-||| The goal for the moment is to implement a reasonably-rich set of
-||| features, up to and including sixel graphics, for supported
-||| terminals. Down the road I might look for graceful fallback
-||| options, and the associated mechanism for detecting terminal
-||| feature sets terminal. Or else this will all be ported to use
-||| ncurses. For now, I'm taking the garden path.
-
+||| These routines operate on an opaque `Context` which theoretically
+||| tracks the draw state, allowing for scope-based mangement of draw
+||| state (position, color, font, style, etc). In practice everything
+||| is written directly to stdout. Baby steps.
+|||
+||| So far, we have a reasonably-rich set of features, including sixel
+||| images, without any need to track draw state. But this is probably
+||| about to change.
+|||
+||| In particular, I would like to support client code which looks
+||| like:
+|||
+||| ```idris
+||| withSGR [Reverse] $ do
+|||    window <- packTop state window self.label
+|||    withClip window $ do
+|||      withTransform self.scrollPos $ \window => do
+|||        ignore $ paintVertical state window self.items
+|||      ...
+||| ```
+|||
+||| The rightward drift is a small price to pay for clear scoping of
+||| draw operations.
+|||
+||| For that to work, we need to cache the draw state somewhere,
+||| because as far as the terminal is concered, attributes are
+||| booleans. But we want to make them more like HTML tags, where they
+||| can nest, and everything is cleaned up properly even in the
+||| presence of failure.
+|||
+||| Tragically, there is no support for *clipping*, and so there's no
+||| support for scrolling, and I'm still not quite sure how to
+||| implement this. It seems important though.
 module TUI.Painting
 
 

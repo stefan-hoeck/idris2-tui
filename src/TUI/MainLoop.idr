@@ -104,7 +104,8 @@ namespace InputShim
       beginSyncUpdate
       clearScreen
       present $ do
-        -- now a context operation, so it's nested in this monad.
+        -- all drawing operations now live in the `Context` monad,
+        -- so they must be nested under the `present` IO action.
         moveTo origin
         render state
       endSyncUpdate
