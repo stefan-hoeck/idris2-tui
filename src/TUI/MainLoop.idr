@@ -147,10 +147,9 @@ namespace MVC
   ||| Use this entry point if you to want MVC abstractions.
   covering export
   runMVC
-    :  Model stateT actionT
-    => View stateT
-    => Controller stateT valueT actionT
-    => (sources : List (EventSource stateT (Response valueT actionT)))
+    :  View stateT
+    => Controller stateT valueT
+    => (sources : List (EventSource stateT (Response stateT valueT)))
     -> stateT
     -> IO (Maybe valueT)
   runMVC sources init =
@@ -161,14 +160,19 @@ namespace MVC
       liftUpdate
       init
 
+
+{-
+
+  xxx: do we need this?
+
   ||| Run a top-level MVC statck.
   |||
   ||| Use this entry point if your top-level state implements the
   ||| component interface.
   covering export
   runComponent
-    :  Component stateT valueT actionT
-    => (sources : List (EventSource stateT (Response valueT actionT)))
-    -> stateT
+    :  (sources : List (EventSource (Component valueT) (Response (Component valueT) valueT)))
+    -> Component valueT
     -> IO (Maybe valueT)
-  runComponent sources init = runMVC sources init
+  runComponent sources self = runMVC sources self
+-}

@@ -17,56 +17,55 @@ import Data.Fin
 import Data.List
 import Data.SortedMap
 import public TUI.Event
-import public TUI.Model
 import Util
 
 
 %default total
 
 
+||| A function which yields the next state.
+public export
+0 Update : Type -> Type
+Update stateT = stateT
+
+||| A function which yields an IO action of the next state.
+public export
+0 Effect : Type -> Type
+Effect stateT = IO stateT
+
 ||| Application-supplied response to an input event.
 |||
 ||| @ Ignore Don't do anything in response to this event
 ||| @ Yield  Yield a value to the parent controller or runtime.
 ||| @ Do     Update the model via an action.
+||| @ Run    Perform an IO action on the model.
 public export
-data Response valueT actionT
+data Response stateT valueT
   = Ignore
-  | Yield (Maybe valueT)
-  | Do actionT
-  | Run (IO actionT)
+  | Yield (Maybe  valueT)
+  | Do    (Update stateT)
+  | Run   (Effect stateT)
 
 ||| The result of updating a component
-|||
-||| This is the
 public export
 0 Result : Type -> Type -> Type
 Result stateT valueT = Either stateT (Maybe valueT)
 
 ||| Determine which action to take in response to an input.
 public export
-interface Controller stateT valueT actionT | stateT where
+interface Controller stateT valueT | stateT where
   ||| Decide what action to take next
-  handle : Key -> stateT -> Response valueT actionT
+  handle : Key -> stateT -> Response stateT valueT
 
 ||| Handle common path for controller Response.
 |||
 ||| This saves having to specify these cases in every Model implementation.
 export
 liftUpdate
-  :  Model stateT actionT
-  => Response valueT actionT
+  :  Response stateT valueT
   -> stateT
   -> IO (Result stateT valueT)
-liftUpdate Ignore       self = pure $ Left self
-liftUpdate (Yield x)    _    = pure $ Right x
-liftUpdate (Do action)  self = pure $ Left $ Model.update action self
-liftUpdate (Run effect) self = pure $ Left $ Model.update !effect self
-
-||| Map over the functions action type.
-export
-Functor (Response valueT) where
-  map f Ignore    = Ignore
-  map f (Yield x) = Yield x
-  map f (Do x)    = Do (f x)
-  map f (Run x)   = Run [| f x |]
+liftUpdate Ignore     self = pure $ Left self
+liftUpdate (Yield x)  _    = pure $ Right x
+liftUpdate (Do next)  _    = pure $ Left next
+liftUpdate (Run next) _    = pure $ Left !next

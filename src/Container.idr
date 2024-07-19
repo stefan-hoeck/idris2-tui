@@ -23,6 +23,17 @@ public export
 0 Id : Type
 Id = Vect 4 Char
 
+||| Implement PathSafe for container IDs
+|||
+||| Container ids are vectors of four characters. They are safe to
+||| encode as paths, since each character must be a digit. Ordinary
+||| barcodes cannot encode non-numeric characters, so anything other
+||| than digits is unexpected.
+export
+PathSafe Id where
+  toPath self = toMaybe (all isDigit self) $ delay $ pack $ toList self
+  fromPath self = toVect 4 $ unpack self
+
 ||| How long a given food item is expected to last.
 |||
 ||| This is meant to capture the different representations of product
@@ -64,20 +75,49 @@ data ContainerType
 |||
 ||| For each container, we track its type, lifetime, gross weight, and
 ||| tear weight.
+|||
+||| This is the generic container, parameterized over the food
+||| representation.
 public export
-record Container where
+record ContainerB foodT where
   constructor MkContainer
   id    : Id
-  food  : Maybe Barcode
+  food  : Maybe foodT
   life  : LifeTime
   type  : ContainerType
   tear  : Weight
   gross : Weight
-%runElab derive "Container" [Show,Eq,FromJSON,ToJSON]
+%runElab derive "ContainerB" [Show,Eq,FromJSON,ToJSON]
+
+||| Project food barcode out of a container.
+|||
+||| This is an interface so we can implement it for different concrete
+||| containers.
+export
+interface HasBarcode foodT where
+  (.barcode) : ContainerB foodT -> Maybe Barcode
+
+||| Container records in a database store the barcode for the food,
+||| instead of the food record.
+namespace Raw
+  public export
+  0 Container : Type
+  Container = ContainerB Barcode
+
+  export HasBarcode (Barcode) where (.barcode) = (.food)
+
+||| Containers returned from queries joined on Food.
+namespace Joined
+  ||| Container with Food joined onto it.
+  public export
+  0 Container : Type
+  Container = ContainerB Food
+
+  export HasBarcode (Food) where self.barcode = (.barcode) <$> self.food
 
 ||| Make a new container with the given id.
 export
-empty : Id -> ContainerType -> Container
+empty : Id -> ContainerType -> ContainerB _
 empty id type = MkContainer {
   id    = id,
   food  = Nothing,
@@ -89,29 +129,29 @@ empty id type = MkContainer {
 
 ||| Project the net weight from Container.
 export
-(.net) : Container -> Weight
+(.net) : ContainerB _ -> Weight
 (.net) self = self.gross - self.tear
 
 ||| Change the food assigned to the container.
 export
-assign : Barcode -> Container -> Container
+assign : foodT -> ContainerB foodT -> ContainerB foodT
 assign food = { food := Just food }
 
 ||| True if the container expires on or after the given date.
 public export
-expiresOn : Date -> Container -> Bool
+expiresOn : Date -> ContainerB _ -> Bool
 expiresOn date self = case expiryDate self.life of
   Nothing => False
   Just e  => date <= e
 
 ||| Updates tear weight on the container.
 export
-setTear : Weight -> Container -> Container
+setTear : Weight -> ContainerB foodT -> ContainerB foodT
 setTear w = { tear := w }
 
 ||| Updates the gross weight on the container.
 export
-setGross : Weight -> Container -> Container
+setGross : Weight -> ContainerB foodT -> ContainerB foodT
 setGross w = { gross := w }
 
 ||| Update the tear weight by subtracting given net weight from the
@@ -122,26 +162,26 @@ setGross w = { gross := w }
 ||| when adding new containers to the inventory, to allow the user to
 ||| subtract the printed net weight from the scale weight.
 export
-setTearFromNet : Weight -> Container -> Container
+setTearFromNet : Weight -> ContainerB foodT -> ContainerB foodT
 setTearFromNet net self = { tear := self.gross - net } self
 
 ||| Reset both weights to zero.
 export
-reset : Container -> Container
+reset : ContainerB foodT -> ContainerB foodT
 reset = { tear := 0.g, gross := 0.g }
 
 ||| True if the container has the given barcode.
 |||
-||| This will match either the container's unique barcode, or the UPC
+||| This will match either the container's unique ID, or the UPC
 ||| for the associated food.
 export
-hasBarcode : Barcode -> Container -> Bool
+hasBarcode : HasBarcode foodT => Barcode -> ContainerB foodT -> Bool
 hasBarcode (User id) self = id      == self.id
-hasBarcode barcode   self = fromMaybe False $ (barcode ==) <$> self.food
+hasBarcode barcode   self = fromMaybe False $ (barcode ==) <$> self.barcode
 
 ||| This is the 'row' View for container.
 export
-View Container where
+View (ContainerB _) where
   -- size here is just a guess, but it should be a fixed grid
   -- up to 13 chars for the barcode, plus padding
   -- 10 digits each for gross, tear, and net

@@ -26,13 +26,6 @@ data Digits
   = Integral (SnocList (Fin 10))
   | Decimal  (SnocList (Fin 10)) (SnocList (Fin 10))
 
-||| Valid actions on a Numeric widget
-public export
-data Action
-  = Clear
-  | Negate
-  | Insert Input
-
 ||| A component for numeric input:
 |||
 ||| Ignores non-numeric keypresses, and cannot hold a non-numeric
@@ -48,7 +41,6 @@ record Numeric a where
   constructor N
   digits   : Digits
   sign     : Bool
-  step     : a
 
 ||| Convert a character to a digit for event handling.
 charToDigit : Char -> Maybe (Fin 10)
@@ -125,9 +117,9 @@ interface Supported a where
   charToInput : Char -> Maybe Input
 
 Supported Nat where
-  (.value)      = parsePositive . toString
-  symbol        = cast 0x2115
-  charToInput c = Digit <$> charToDigit c
+  (.value)       = parsePositive . toString
+  symbol         = cast 0x2115
+  charToInput c  = Digit <$> charToDigit c
 
 Supported Integer where
   (.value)        = parseInteger . toString
@@ -143,15 +135,10 @@ Supported Double where
   charToInput c   = Digit <$> charToDigit c
 
 ||| Handle a supported keypress.
-handleChar : Supported a => Char -> Response a Action
-handleChar char = fromMaybe Ignore $ (Do . Insert) <$> charToInput {a = a} char
-
-||| Implement Model for supported number types.
-export
-Supported a => Model (Numeric a) Action where
-  update Clear      self = clear  self
-  update Negate     self = negate self
-  update (Insert i) self = insert i self
+handleChar : Supported a => Char -> Numeric a -> Response (Numeric a) a
+handleChar char self = case charToInput {a = a} char of
+  Nothing => Ignore
+  Just i  => Do $ insert i self
 
 ||| Implement Model for supported number types.
 export
@@ -161,23 +148,18 @@ Supported a => View (Numeric a) where
 
 ||| Implement Model for supported number types.
 export
-Supported a => Controller (Numeric a) a Action where
-  handle (Alpha char) self = handleChar char
-  handle Delete       self = Do Clear
+Supported a => Controller (Numeric a) a where
+  handle (Alpha char) self = handleChar char self
+  handle Delete       self = Do $ clear self
   handle Left         self = Yield Nothing
   handle Enter        self = Yield self.value
   handle Escape       self = Yield Nothing
   handle _            self = Ignore
 
-||| Implement Model for supported number types.
-export
-Supported a => Component (Numeric a) a Action where
-
 ||| Create a numeric widget from a number value.
 export
-numeric : a -> a -> actionT -> Numeric a
-numeric value step onChange = N {
+numeric : a -> Numeric a
+numeric value = N {
   digits   = empty, -- xxx: decode
-  sign     = False,
-  step     = step
+  sign     = False
 }

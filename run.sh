@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 export AMPII_DB_PATH=database
-export AMPII_SCALE_PATH=/dev/hidraw3
+export AMPII_SCALE_PATH=/dev/hidraw0
 
 function localURL {
     echo "http://$(hostname -I | cut -d ' ' -f 1):8000"

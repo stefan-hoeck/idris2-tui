@@ -29,17 +29,6 @@ import USBScale
 %default total
 %language ElabReflection
 
-{-
-namespace Raw
-  public export
-  0 Container : Type
-  Container = Container.Container
-
-namespace Joined
-  public export
-  0 Container : Type
-  Container = Container.Container Food
-
 
 {- Search --------------------------------------------------------------------}
 
@@ -61,12 +50,12 @@ data Query
 
 ||| A predicate, which returns true if the query matches on the given
 ||| container.
-query : Query -> Id -> Joined.Container -> Bool
-query (ByBarcode x)  id c = id == show x || c.food.barcode == x
-query (ExpiresOn x)  _ c = expiresOn x c.life
-query (ByFoodName n) _ c = fuzzyMatch n c.food.name
-query (And a b)      i c = (query a i c) && (query b i c)
-query All            _ _ = True
+eval : Query -> Joined.Container -> Bool
+eval (ByBarcode x)  c = hasBarcode x c
+eval (ExpiresOn x)  c = expiresOn  x c
+eval (ByFoodName n) c = fromMaybe False $ fuzzyMatch n <$> name <$> c.food
+eval (And a b)      c = (eval a c) && (eval b c)
+eval All            _ = True
 
 
 {- Command line parsing ****************************************** -}
@@ -91,7 +80,6 @@ Show a => Show (Prompt a) where
   show ChooseFood    = "ChooseFood"
   show (QueryId x)   = "(QueryId \{show x})"
   show ChooseId      = "ChooseId"
-
 
 ||| The high level commands on the inventory.
 |||
@@ -139,19 +127,21 @@ parseNat s = case stringToNatOrZ s of
   Z => Nothing
   x => Just x
 
+||| Parse a barcode in a command
+|||
+||| The special value `choose` will prompt the user to choose from a list.
+parseBarcode  : String -> Maybe $ Prompt Barcode
+parseBarcode "choose" = Just ChooseFood
+parseBarcode bc = map Direct $ fromDigits bc
+
 ||| Parse an ID in a command
 |||
 ||| The special value `choose` will prompt the user to choose from a list.
 parseId : String -> Maybe $ Prompt Id
 parseId "choose" = Just ChooseId
-parseId id       = Just $ Direct id
-
-||| Parse a barcode in a command
-|||
-||| The special value `choose` will prompt the user to choose from a list.
-parseBarcode  : String      -> Maybe $ Prompt Barcode
-parseBarcode "choose" = Just ChooseFood
-parseBarcode bc = map Direct $ fromDigits bc
+parseId id       = case fromDigits id of
+  Just (User id) => Just $ Direct id
+  _              => Nothing
 
 ||| Parse a container lifetime
 |||
@@ -206,38 +196,41 @@ parse ["transfer", a, b]     = Just $ Transfer !(parseId a) !(parseId b)
 parse ["delete", id]         = map Delete $ parseId id
 parse _                      = Nothing
 
-
 {- Configuration -------------------------------------------------------------}
 
 ||| Declare table of food records.
-Row Id Food where
+Row Food where
+  PrimaryKey = Barcode
+  primaryKey = (.barcode)
+  OrdPK = %search
+  PathSafePK = %search
 
 ||| Declare table of container records.
-Row Id (Raw.Container) where
-
-||| Declare the foreign-key relationship between containers and foods.
-|||
-||| XXX: This could be automated with idris-sop.
-ForeignKey Id Raw.Container Id Food where
-  JoinResult           = Joined.Container
-  foreignKey cont      = show cont.food
-  joinValue  cont food = MkContainer {
-    food    = food,
-    life    = cont.life,
-    type    = cont.type,
-    empty   = cont.empty,
-    current = cont.current
-  }
+Row Raw.Container where
+  PrimaryKey = Id
+  primaryKey = (.id)
+  OrdPK = %search
+  PathSafePK = %search
 
 ||| Declare the row type after the above join
-Row Id Joined.Container where
+Row Joined.Container where
+  PrimaryKey = Id
+  primaryKey = (.id)
+  OrdPK = %search
+  PathSafePK = %search
+
+||| Declare the foreign-key relationship between containers and foods.
+ForeignKey Raw.Container Food where
+  Join                 = Joined.Container
+  foreignKey cont      = cont.food
+  joinValue  cont food = Just $ {food := Just food} cont
 
 ||| This is the config for our inventory database.
 record Config where
   constructor MkConfig
   scale      : String
-  foods      : Handle Id Food
-  containers : Handle Id Raw.Container
+  foods      : Handle Food
+  containers : Handle Raw.Container
 
 ||| Construct the configuration from environment variables.
 covering
@@ -249,18 +242,16 @@ getConfig = do
   Right c    <- connect "\{db}/container" | Left e  => die e
   pure $ MkConfig scale f c
 
-
 {- Command Processing --------------------------------------------------------}
 
 0 Result : Type -> Type
 Result a = IO (Either Error a)
 
-ok : Inventory.Result Builtin.Unit
-ok = pure $ Right ()
+ok : a -> Inventory.Result a
+ok x = pure $ Right x
 
 fail : Error -> Inventory.Result a
 fail e = pure $ Left e
-
 
 covering
 runPrompt : Config -> Prompt x -> IO x
@@ -275,36 +266,37 @@ runPrompt cfg ChooseId = ?runPrompt_rhs_5
 
 covering
 run : Config -> Command -> Inventory.Result Builtin.Unit
-run cfg (Search q)  = do
-  Right result <- join (query q) cfg.containers cfg.foods | Left e => fail e
-  printRows result
-  ok
-run cfg (Show x)    = do
+run cfg (Search q) = do
+  Right containers <- select cfg.containers | Left e => fail e
+  Right foods <- select cfg.foods | Left e => fail e
+  let joined = (DirDB.join containers foods).where (eval q)
+  print joined
+  ok ()
+run cfg (Show x) = do
   id <- runPrompt cfg x
   Right cont <- readRow cfg.containers id | Left e => fail e
   putStrLn $ show cont
-  ok
+  ok ()
 run cfg (Weigh id w) = do
   id <- runPrompt cfg id
   Right cont <- readRow cfg.containers id | Left e => fail e
   cw <- runPrompt cfg w
-  Right _ <- writeRow cfg.containers id $ {current := cw} cont | Left e => fail e
-  ok
+  -- Right _ <- writeRow cfg.containers id $ setGross cw cont | Left e => fail e
+  ok ()
 run cfg (Create id bc lt ct ew cw) = do
   id <- runPrompt cfg id
   bc <- runPrompt cfg bc
   ew <- runPrompt cfg ew
   cw <- runPrompt cfg cw
-  Right _ <- writeRow cfg.containers id $ MkContainer bc lt ct ew cw
-          | Left e => fail e
-  ok
+  -- Right _ <- writeRow cfg.containers id $ MkContainer id lt ct ew cw
+  --      | Left e => fail e
+  ok ()
 run _ (Transfer x y) = ?hole_4
 run cfg (Delete id) = do
   id <- runPrompt cfg id
-  Right _ <- deleteRow cfg.containers id | Left e => fail e
-  putStrLn "Deleted: \{id}"
-  ok
-
+  -- Right _ <- deleteRow cfg.containers id | Left e => fail e
+  putStrLn "Deleted: \{showId id}"
+  ok ()
 
 {- Entry Point ---------------------------------------------------------------}
 

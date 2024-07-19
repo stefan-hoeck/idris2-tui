@@ -16,13 +16,6 @@ import Util
 %default total
 
 
-||| Actions valid on a choice object.
-public export
-data Action : Type where
-  Prev   :        Action
-  Next   :        Action
-  Choose : Nat -> Action
-
 ||| Represents an exclusive choice
 export
 record Exclusive itemT where
@@ -65,15 +58,6 @@ arrowForIndex (FS n) = if FS n == last
   else arrow UpDown
 
 export
-Model (Exclusive itemT) Action where
-  update Prev       self = prev self
-  update Next       self = next self
-  update (Choose i) self = case natToFin i (length self.choices) of
-    Just i => choose self i
-    -- if the index is invalid, leave unchanged.
-    Nothing => self
-
-export
 View itemT => View (Exclusive itemT) where
   size self =
     let sizes   := View.size <$> self.choices
@@ -85,16 +69,27 @@ View itemT => View (Exclusive itemT) where
     paint state (window.shiftRight 2) self.selected
 
 export
-Controller (Exclusive itemT) itemT Action where
-  handle Up     self = Do     Prev
-  handle Down   self = Do     Next
-  handle Left   self = Yield  Nothing
-  handle Escape self = Yield  Nothing
-  handle Enter  self = Yield  $ Just self.selected
+Controller (Exclusive itemT) itemT where
+  handle Up     self = Do $ prev self
+  handle Down   self = Do $ next self
+  handle Left   self = Yield Nothing
+  handle Escape self = Yield Nothing
+  handle Enter  self = Yield $ Just self.selected
   handle _      _    = Ignore
 
+%hint
 export
-View itemT => Component (Exclusive itemT) itemT Action where
+component
+  :  {auto itemT : Type}
+  -> {auto vimpl : View itemT}
+  -> Exclusive itemT
+  -> Component itemT
+component {itemT} {vimpl} self = MkComponent {
+  State = Exclusive itemT,
+  state = self,
+  handler = handle,
+  vimpl = %search
+}
 
 ||| Create an exclusive choice component from a non-empty list of choices.
 export

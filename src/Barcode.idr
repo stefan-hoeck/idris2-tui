@@ -4,6 +4,7 @@ module Barcode
 
 import Derive.Prelude
 import JSON.Derive
+import DirDB
 
 
 %language ElabReflection
@@ -76,3 +77,11 @@ fromString : String -> Barcode
 fromString s = case fromDigits s of
   Nothing => idris_crash "Not a valid barcode"
   Just b  => b
+
+||| Implement PathSafe for Barcode
+export
+PathSafe (Barcode) where
+  toPath self@(EAN13 xs) = toMaybe (all isDigit xs) $ show self
+  toPath self@(UPC   xs) = toMaybe (all isDigit xs) $ show self
+  toPath self@(User  xs) = toMaybe (all isDigit xs) $ show self
+  fromPath = fromDigits

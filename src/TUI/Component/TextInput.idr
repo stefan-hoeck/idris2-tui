@@ -14,14 +14,6 @@ import TUI.Zipper.List
 %default total
 
 
-||| Actions valid on TextInput
-public export
-data Action
-  = Delete
-  | GoLeft
-  | GoRight
-  | Insert Char
-
 ||| An Editable String View.
 export
 record TextInput where
@@ -43,13 +35,21 @@ export
 toString : TextInput -> String
 toString self = pack $ toList self.chars
 
-||| Implement Model for TextInput
 export
-Model TextInput Action where
-  update Delete     self = {chars $= delete}   self
-  update GoLeft     self = {chars $= goLeft}   self
-  update GoRight    self = {chars $= goRight}  self
-  update (Insert c) self = {chars $= insert c} self
+delete : TextInput -> Update TextInput
+delete = {chars $= delete}
+
+export
+goLeft : TextInput -> Update TextInput
+goLeft = {chars $= goLeft}
+
+export
+goRight : TextInput -> Update TextInput
+goRight = {chars $= goRight}
+
+export
+insert : Char -> TextInput -> Update TextInput
+insert c = {chars $= insert c}
 
 ||| Implement View for TextInput
 export
@@ -77,22 +77,18 @@ View TextInput where
 
 ||| Implement Component for TextInput.
 export
-Controller TextInput String Action where
-  handle Left      self = Do GoLeft
-  handle Right     self = Do GoRight
-  handle Delete    self = Do Delete
-  handle (Alpha c) self = Do $ Insert c
+Controller TextInput String where
+  handle Left      self = Do $ goLeft self
+  handle Right     self = Do $ goRight self
+  handle Delete    self = Do $ delete self
+  handle (Alpha c) self = Do $ insert c self
   handle Enter     self = Yield $ Just $ toString self
   handle Escape    self = Yield Nothing
   handle _         self = Ignore
 
-||| Implement Component for TextInput.
-export
-Component TextInput String Action where
-
 ||| Make `String` `Editable` via `TextInput`
 export
-Editable String TextInput Action where
+Editable String TextInput where
   fromValue = TextInput.fromString
   toValue   = Just . TextInput.toString
   blank     = TextInput.empty

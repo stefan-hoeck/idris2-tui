@@ -5,11 +5,11 @@
 module TUI
 
 import public TUI.Component
-import public TUI.Component.Dynamic
 import public TUI.Component.Editor
 import public TUI.Component.Form
 import public TUI.Component.Menu
 import public TUI.Component.Numeric
+import public TUI.Component.Stack
 import public TUI.Component.Table
 import public TUI.Component.TextInput
 import public TUI.Component.VList
@@ -70,7 +70,7 @@ testForm = form [
 partial export
 gallery : IO ()
 gallery = do
-  let result : Maybe String = !(runComponent [] testMenu)
+  let result : Maybe String = !(runMVC [] testMenu)
   case result of
     Nothing => putStrLn "User Canceled"
     Just choice => putStrLn $ "User selected: \{show choice}"

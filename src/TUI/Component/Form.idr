@@ -1,78 +1,75 @@
 ||| Minimalist terminal UI framework.
 |||
-||| Editing and navigation for a set of labeled subviews.
+||| A form is an editor for a heterogenous list of values.
 module TUI.Component.Form
 
 import public Data.Vect
 import public Data.Vect.Quantifiers
 
 import TUI.View
+import TUI.Component.Editor
+import TUI.Controller
 import Util
 import TUI.Zipper.List
 
 
 %default total
 
-{-
 
-||| Store the metadata for each form field.
-|||
-||| The field is either in the editing state, in which case events are
-||| proxied down to the subview, or else it is in the default state,
-||| in which case events operate on the parent form.
+||| A field is a tuple of a label and a value editor.
 export
-data Field actionT
-  = Editing String (Dynamic actionT)
-  | Default String (Dynamic actionT)
+record Field valueT editorT where
+  constructor MkField
+  label : String
+  value : Editor valueT editorT
 
+||| Construct a field for an editable type
 export
-field : View innerT actionT => String -> innerT -> Field actionT
-field label view = Default label (Dyn {stateT = innerT} view)
+field
+  :  Editable valueT editorT
+  => String
+  -> (Maybe valueT)
+  -> Field valueT editorT
+field label Nothing      = MkField label (empty          "(empty)")
+field label (Just value) = MkField label (accepted value "(empty)")
 
-||| Project user data out of a field as the label.
-(.label) : Field _ -> String
-(.label) (Editing label _) = label
-(.label) (Default label _) = label
-
-||| Project the subview out of the field.
-(.view) : Field actionT -> Dynamic actionT
-(.view) (Editing _ view) = view
-(.view) (Default _ view) = view
-
-||| Place a field into the editing state.
-enter : Field actionT -> Field actionT
-enter self = Editing self.label self.view
-
-||| Place a field in the default state.
-exit : Field actionT -> Field actionT
-exit self = Default self.label self.view
+||| Lift a value to a field update.
+export
+update
+  :  Editor valueT editorT
+  -> Field valueT editorT
+  -> Field valueT editorT
+update next = {value := next}
 
 ||| Paint a single field.
 |||
 ||| The label and contents are justified according to the split value.
-paintField : Nat -> State -> Rect -> Field _ -> IO ()
+export
+paintField
+  : Editable valueT editorT
+  => Nat
+  -> State
+  -> Rect
+  -> Field valueT editorT
+  -> Context ()
 paintField split state window self = do
   let (left, right) = hdivide window split
-  case (state, self) of
-    (Focused, Editing label subview) => do
+  case (state, self.value) of
+    (Focused, Editing editor _ _) => do
       sgr [SetStyle SingleUnderline]
-      showTextAt left.nw label
+      showTextAt left.nw self.label
       sgr [Reset]
-      paint Focused right subview
-    (Focused, Default label subview) => do
+      paint Focused right self.value
+    (Focused, _) => do
       reverseVideo
-      showTextAt left.nw label
+      showTextAt left.nw self.label
       sgr [Reset]
-      paint Normal right subview
+      paint Normal right self.value
     (state, _) => do
       withState state $ showTextAt left.nw self.label
-      paint state right self.view
+      paint state right self.value
 
-||| Update the subview without changing its state.
-updateSubview : Field actionT -> Dynamic actionT -> Field actionT
-updateSubview (Editing l _) subview = Editing l subview
-updateSubview (Default l _) subview = Default l subview
-
+{-
 ||| Handle input for a single field, depending on its state.
 |||
 ||| If the field is in the Editing state, events are proxied to the
@@ -82,8 +79,8 @@ updateSubview (Default l _) subview = Default l subview
 ||| navigation commands.
 handleField
   :  Key
-  -> Field actionT
-  -> Response (Field actionT) (Action actionT)
+  -> Field valueT editorT
+  -> Response (Field valueT editorT) valueT
 handleField key self = case self of
   Editing _ subview => case handleDynamic key subview of
     Exit          => Update $ exit self
@@ -99,6 +96,9 @@ handleField key self = case self of
     Enter     => Update $ enter self
     Tab       => Do FocusNext
     Escape    => Exit
+-}
+
+{-
 
 ||| A form is a container of labeled views.
 |||
@@ -108,7 +108,7 @@ handleField key self = case self of
 export
 record Form actionT where
   constructor MkForm
-  fields      : Container (Field actionT)
+  fields      : VList (Field T) actionT
   split       : Nat
   contentSize : Area
 
