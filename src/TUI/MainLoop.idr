@@ -160,12 +160,7 @@ namespace MVC
       liftUpdate
       init
 
-
-{-
-
-  xxx: do we need this?
-
-  ||| Run a top-level MVC statck.
+  ||| Run the given component UI.
   |||
   ||| Use this entry point if your top-level state implements the
   ||| component interface.
@@ -175,4 +170,3 @@ namespace MVC
     -> Component valueT
     -> IO (Maybe valueT)
   runComponent sources self = runMVC sources self
--}

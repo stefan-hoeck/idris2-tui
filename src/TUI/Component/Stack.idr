@@ -9,13 +9,14 @@ import TUI.Component
 
 %default total
 
+
 ||| A heterogenous stack of Components.
 |||
 ||| @top  The top type of the stack
 ||| @root The root type of the stack.
 data Stack : (top : Type) -> (root : Type) -> Type where
   Nil  : Stack root root
-  ||| @f Merges the top of the stack with the next lower element.
+  ||| @merge Function to merge top of the stack with the element beneath.
   (::) : (merge : Maybe top -> Component a) -> Stack a root -> Stack top root
 
 ||| A Component which Introduces a Modal Context.
@@ -64,6 +65,10 @@ push t cur f = M t (update :: cur.stack)
     update Nothing = cur.component
     update (Just v) = f v cur.component
 
+View (Modal t) where
+  size self = size self.component
+  paint state window self = paint state window self.component
+
 ||| Controller implementation for Modal
 export
 Controller (Modal rootT) rootT where
@@ -74,3 +79,13 @@ Controller (Modal rootT) rootT where
       Right v => Yield v
     Do x  => Do $ {component := x} self
     Run x => Run $ do pure $ {component := !x} self
+
+||| Lift a modal to a component
+export
+modal : Modal t -> Component t
+modal m = MkComponent {
+  State = Modal t,
+  state = m,
+  handler = handle,
+  vimpl = %search
+}

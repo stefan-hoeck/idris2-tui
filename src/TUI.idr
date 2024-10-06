@@ -31,46 +31,21 @@ export
 testMenu : Exclusive String
 testMenu = menu ["foo", "bar", "baz"]
 
-{-
+||| Test modal components
 export
-testDynamic : Dynamic ()
-testDynamic = Dyn testMenu
-
-export
-testField : Field ()
-testField = field "Test Field" testMenu
-
-record Test where
-  constructor MkTest
-  container : Container (Field ())
-
-test : Test
-test = MkTest $ fromList [testField]
-
-View Test () where
-  size self = sizeVertical $ Zipper.List.toList self.container
-  paint state window self = paintVertical @{splitAt $ length "Test Field"} state window $ self.container
-  handle key self = liftResponse key update self.container
-    where
-      update : Container (Field ()) -> Test
-      update container = { container := container } self
-
-||| A simple form, useful for testing.
-export
-testForm : Form ()
-testForm = form [
-  field "F1"         testMenu,
-  field "Long name"  testMenu,
-  field "Text Input" $ TextInput.fromString "test",
-  field "Test"       $ TextInput.fromString "test"
-]
-
--}
+testModal : Component String
+testModal = modal $ root $ withHandler "(a): Foo, (b): bar" handle
+  where
+    handle : Key -> String -> Response String String
+    handle (Alpha 'a') _ = Yield $ Just "Foo"
+    handle (Alpha 'b') _ = Yield $ Just "Bar"
+    handle (Alpha 'c') _ = Do $ ?hole
+    handle _           _ = Ignore
 
 partial export
 gallery : IO ()
 gallery = do
-  let result : Maybe String = !(runMVC [] testMenu)
+  let result : Maybe String = !(runMVC [] testModal)
   case result of
     Nothing => putStrLn "User Canceled"
     Just choice => putStrLn $ "User selected: \{show choice}"
