@@ -271,31 +271,32 @@ namespace SmartScale
   ||| type is composed of subcomponents, we don't dispatch to the
   ||| component handlers, as I want tighter control, and to avoid some
   ||| modal behavior.
-  Controller SmartScale (List Raw.Container) where
-    -- '*' always sets the barcode input to an empty buffer
-    -- this way, if the barcode scanner is used on a partial buffer,
-    -- we clear it before accepting chars from the scanner.
-    handle (Alpha '*') self = Do $ {barcode $= edit} self
-    handle key self = case self.barcode of
-      barcode@(Editing x y _) => case handle key barcode of
-        Ignore      => Ignore
-        (Yield bc)  => select bc self
-        (Do z)      => Do $ {barcode := z} self
-        (Run z)     => Run $ do pure $ {barcode := !z} self
-      _ => case key of
-        (Alpha 'q') => Yield $ Just $ toList self.containers
-        (Alpha 'r') => Do $ {containers $= lift $ update $ reset} self
-        (Alpha 's') => withCurrentWeight setGross self
-        (Alpha 't') => withCurrentWeight setTear  self
-        (Alpha _)   => Ignore
-        Left        => Ignore
-        Right       => Ignore
-        Up          => Do $ {containers $= lift $ goLeft} self
-        Down        => Do $ {containers $= lift $ goRight} self
-        Delete      => Do $ {containers $= lift $ delete} self
-        Enter       => withCurrentWeight setGross self
-        Tab         => Do $ {containers $= lift $ goRight} self
-        Escape      => Yield Nothing
+  |||
+  ||| '*' always sets the barcode input to an empty buffer
+  ||| this way, if the barcode scanner is used on a partial buffer,
+  ||| we clear it before accepting chars from the scanner.
+  handle : Handler SmartScale (List Raw.Container)
+  handle (Alpha '*') self = Do $ {barcode $= edit} self
+  handle key self = case self.barcode of
+    barcode@(Editing x y _) => case handle key barcode of
+      Ignore      => Ignore
+      (Yield bc)  => select bc self
+      (Do z)      => Do $ {barcode := z} self
+      (Run z)     => Run $ do pure $ {barcode := !z} self
+    _ => case key of
+      (Alpha 'q') => Yield $ Just $ toList self.containers
+      (Alpha 'r') => Do $ {containers $= lift $ update $ reset} self
+      (Alpha 's') => withCurrentWeight setGross self
+      (Alpha 't') => withCurrentWeight setTear  self
+      (Alpha _)   => Ignore
+      Left        => Ignore
+      Right       => Ignore
+      Up          => Do $ {containers $= lift $ goLeft} self
+      Down        => Do $ {containers $= lift $ goRight} self
+      Delete      => Do $ {containers $= lift $ delete} self
+      Enter       => withCurrentWeight setGross self
+      Tab         => Do $ {containers $= lift $ goRight} self
+      Escape      => Yield Nothing
 
   ||| Create a new SmartScale with the given list of containers.
   export
@@ -313,7 +314,7 @@ namespace SmartScale
   ||| Main entry point
   export covering
   run : IO ()
-  run = ignore $ runMVC [On "Scale" onScale, On "Image" onImage] (smartscale [])
+  run = ignore $ runMVC [On "Scale" onScale, On "Image" onImage] (smartscale []) handle
 
 ||| Entry point for basic scale command.
 export partial

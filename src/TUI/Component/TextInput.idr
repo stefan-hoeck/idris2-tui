@@ -77,14 +77,14 @@ View TextInput where
 
 ||| Implement Component for TextInput.
 export
-Controller TextInput String where
-  handle Left      self = Do $ goLeft self
-  handle Right     self = Do $ goRight self
-  handle Delete    self = Do $ delete self
-  handle (Alpha c) self = Do $ insert c self
-  handle Enter     self = Yield $ Just $ toString self
-  handle Escape    self = Yield Nothing
-  handle _         self = Ignore
+handle : Handler TextInput String
+handle Left      self = Do $ goLeft self
+handle Right     self = Do $ goRight self
+handle Delete    self = Do $ delete self
+handle (Alpha c) self = Do $ insert c self
+handle Enter     self = Yield $ Just $ toString self
+handle Escape    self = Yield Nothing
+handle _         self = Ignore
 
 ||| Make `String` `Editable` via `TextInput`
 export
@@ -92,3 +92,5 @@ Editable String TextInput where
   fromValue = TextInput.fromString
   toValue   = Just . TextInput.toString
   blank     = TextInput.empty
+  update    = handle
+

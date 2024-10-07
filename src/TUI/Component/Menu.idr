@@ -6,7 +6,6 @@ import Data.Fin
 import Data.List
 import Data.Nat
 import TUI.Component
-import TUI.Controller
 import TUI.Layout
 import TUI.Painting
 import TUI.View
@@ -68,28 +67,13 @@ View itemT => View (Exclusive itemT) where
     withState state $ showTextAt window.nw (arrowForIndex self.choice)
     paint state (window.shiftRight 2) self.selected
 
-export
-Controller (Exclusive itemT) itemT where
-  handle Up     self = Do $ prev self
-  handle Down   self = Do $ next self
-  handle Left   self = Yield Nothing
-  handle Escape self = Yield Nothing
-  handle Enter  self = Yield $ Just self.selected
-  handle _      _    = Ignore
-
-%hint
-export
-component
-  :  {auto itemT : Type}
-  -> {auto vimpl : View itemT}
-  -> Exclusive itemT
-  -> Component itemT
-component {itemT} {vimpl} self = MkComponent {
-  State = Exclusive itemT,
-  state = self,
-  handler = handle,
-  vimpl = %search
-}
+handle : Handler (Exclusive itemT) itemT
+handle Up     self = Do $ prev self
+handle Down   self = Do $ next self
+handle Left   self = Yield Nothing
+handle Escape self = Yield Nothing
+handle Enter  self = Yield $ Just self.selected
+handle _      _    = Ignore
 
 ||| Create an exclusive choice component from a non-empty list of choices.
 export
@@ -98,3 +82,11 @@ menu
   -> {auto 0 prf : IsJust (natToFin 0 (length choices))}
   -> Exclusive itemT
 menu choices = MkChoice choices $ fromJust $ natToFin 0 (length choices)
+
+export
+component
+  :  View itemT
+  => (choices    : List itemT)
+  -> {auto 0 prf : IsJust (natToFin 0 (length choices))}
+  -> Component itemT
+component {itemT} choices = active (menu choices) handle

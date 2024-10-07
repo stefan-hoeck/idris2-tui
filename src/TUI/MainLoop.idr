@@ -148,13 +148,13 @@ namespace MVC
   covering export
   runMVC
     :  View stateT
-    => Controller stateT valueT
     => (sources : List (EventSource stateT (Response stateT valueT)))
     -> stateT
+    -> (Key -> stateT -> Response stateT valueT)
     -> IO (Maybe valueT)
-  runMVC sources init =
+  runMVC sources init handler =
     runTUI
-      Controller.handle
+      handler
       sources
       (View.paint Focused !(screen))
       liftUpdate
@@ -169,4 +169,4 @@ namespace MVC
     :  (sources : List (EventSource (Component valueT) (Response (Component valueT) valueT)))
     -> Component valueT
     -> IO (Maybe valueT)
-  runComponent sources self = runMVC sources self
+  runComponent sources self = runMVC sources self handle

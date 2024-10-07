@@ -13,7 +13,6 @@ import public TUI.Component.Stack
 import public TUI.Component.Table
 import public TUI.Component.TextInput
 import public TUI.Component.VList
-import public TUI.Controller
 import public TUI.Event
 import public TUI.Image
 import public TUI.Layout
@@ -28,24 +27,28 @@ import public TUI.View
 
 ||| A simple menu, useful for testing.
 export
-testMenu : Exclusive String
-testMenu = menu ["foo", "bar", "baz"]
+testMenu : Component String
+testMenu = Menu.component ["foo", "bar", "baz"]
 
 ||| Test modal components
 export
 testModal : Component String
-testModal = modal $ root $ withHandler "(a): Foo, (b): bar" handle
+testModal = root (static "(a): Foo, (b): bar, (c): push") handle
   where
-    handle : Key -> String -> Response String String
+    handle : Key -> Modal String -> Response (Modal String) String
     handle (Alpha 'a') _ = Yield $ Just "Foo"
     handle (Alpha 'b') _ = Yield $ Just "Bar"
-    handle (Alpha 'c') _ = Do $ ?hole
+    handle (Alpha 'c') s = Do $ push testMenu s merge_
+      where
+        merge_ : String -> Component s.topT -> Component s.topT
+        merge_ string top = ?hole
     handle _           _ = Ignore
+
 
 partial export
 gallery : IO ()
 gallery = do
-  let result : Maybe String = !(runMVC [] testModal)
+  let result : Maybe String = !(runComponent [] testModal)
   case result of
     Nothing => putStrLn "User Canceled"
     Just choice => putStrLn $ "User selected: \{show choice}"

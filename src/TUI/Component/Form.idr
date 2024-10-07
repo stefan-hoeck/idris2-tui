@@ -8,7 +8,6 @@ import public Data.Vect.Quantifiers
 
 import TUI.View
 import TUI.Component.Editor
-import TUI.Controller
 import Util
 import TUI.Zipper.List
 

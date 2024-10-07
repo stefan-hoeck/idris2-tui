@@ -17,27 +17,27 @@ import TUI.Zipper.List
 ||| A component for editing arbitrary values.
 |||
 ||| An `Editor` can be in one of three states:
-||| @ Empty    An uninitialized value
-||| @ Editing  Currently editing a value that may be incomplete.
-||| @ Accepted Holding a legal value, possibly retaining previous editing state.
+||| @ Empty    An uninitialized value.
+||| @ Editing  Currently editing a value.
+||| @ Accepted Holds a legal value, and possibly the last editor state.
 public export
 data Editor valueT editorT
   = Empty String
-  | Editing editorT (Maybe valueT)  String
-  | Accepted valueT (Maybe editorT) String
+  | Editing  editorT (Maybe valueT)  String
+  | Accepted valueT  (Maybe editorT) String
 
 ||| Defines how to create an editor for a value.
 public export
 interface
      View valueT
   => View editorT
-  => Controller editorT valueT
-  => Editable valueT editorT | editorT
+  => Editable valueT editorT
 where
   constructor MkEditable
   fromValue  : valueT  -> editorT
   toValue    : editorT -> Maybe valueT
   blank      : editorT
+  update     : Handler editorT valueT
 
 ||| Get the current value out of the editor.
 |||
@@ -143,21 +143,12 @@ Editable valueT editorT => View (Editor valueT editorT) where
     (Accepted value _ _)   => paint state window value
 
 export
-implementation
-     Editable valueT editorT
-  => Controller (Editor valueT editorT) valueT
-where
-  handle key self@(Editing e _ _) = case handle key e of
-    Ignore           => Ignore
-    (Yield (Just v)) => Do  $ commit v self
-    (Yield Nothing)  => Do  $ rollback self
-    (Do f)           => Do  $ liftUpdate f self
-    (Run f)          => Run $ liftEffect f self
-  handle Enter self = Do $ edit self
-  handle _     _    = Ignore
-
-export
-editorViewImpl
-  :  Editable valueT editorT
-  => View (Editor valueT editorT)
-editorViewImpl = %search
+handle : Editable valueT editorT => Handler (Editor valueT editorT) valueT
+handle key self@(Editing e _ _) = case (update key e) of
+  Ignore           => Ignore
+  (Yield (Just v)) => Do  $ commit v self
+  (Yield Nothing)  => Do  $ rollback self
+  (Do f)           => Do  $ liftUpdate f self
+  (Run f)          => Run $ liftEffect f self
+handle Enter self = Do $ edit self
+handle _     _    = Ignore

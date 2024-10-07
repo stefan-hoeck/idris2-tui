@@ -148,13 +148,13 @@ Supported a => View (Numeric a) where
 
 ||| Implement Model for supported number types.
 export
-Supported a => Controller (Numeric a) a where
-  handle (Alpha char) self = handleChar char self
-  handle Delete       self = Do $ clear self
-  handle Left         self = Yield Nothing
-  handle Enter        self = Yield self.value
-  handle Escape       self = Yield Nothing
-  handle _            self = Ignore
+handle : Supported a => Handler (Numeric a) a
+handle (Alpha char) self = handleChar char self
+handle Delete       self = Do $ clear self
+handle Left         self = Yield Nothing
+handle Enter        self = Yield self.value
+handle Escape       self = Yield Nothing
+handle _            self = Ignore
 
 ||| Create a numeric widget from a number value.
 export
