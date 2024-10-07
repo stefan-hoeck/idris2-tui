@@ -150,5 +150,6 @@ handle key self@(Editing e _ _) = case (update key e) of
   (Yield Nothing)  => Do  $ rollback self
   (Do f)           => Do  $ liftUpdate f self
   (Run f)          => Run $ liftEffect f self
+  (Push t m)       => ?handle_later
 handle Enter self = Do $ edit self
 handle _     _    = Ignore

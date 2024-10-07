@@ -283,6 +283,7 @@ namespace SmartScale
       (Yield bc)  => select bc self
       (Do z)      => Do $ {barcode := z} self
       (Run z)     => Run $ do pure $ {barcode := !z} self
+      (Push t m)  => ?also_handle_later
     _ => case key of
       (Alpha 'q') => Yield $ Just $ toList self.containers
       (Alpha 'r') => Do $ {containers $= lift $ update $ reset} self

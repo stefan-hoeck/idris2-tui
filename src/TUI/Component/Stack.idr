@@ -3,8 +3,6 @@
 module TUI.Component.Stack
 
 import TUI.Component
---import TUI.Geometry
---import TUI.View
 
 
 %default total
@@ -48,6 +46,27 @@ pop
 pop (M top [])               v = Right v
 pop (M top (merge :: tail))  v = Left $ M (merge v) tail
 
+||| Push a new component onto the Modal context.
+export
+push
+  :  Component top
+  -> (cur : Modal rootT)
+  -> (Maybe top -> Component cur.topT)
+  -> Modal rootT
+push t cur f = M t (f :: cur.stack)
+
+||| delegate event handling to the wrapped component
+export
+handle : Handler (Modal rootT) rootT
+handle key self = case handle key self.component of
+  Ignore => Ignore
+  Yield x => case pop self x of
+    Left next => Do next
+    Right v => Yield v
+  Do x  => Do $ {component := x} self
+  Run x => Run $ do pure $ {component := !x} self
+  Push t m => Do $ push t self m
+
 export
 View (Modal t) where
   size self = size self.component
@@ -57,12 +76,11 @@ View (Modal t) where
 export
 modal
   : Modal t
-  -> (Key -> Modal t -> Response (Modal t) t)
   -> Component t
-modal m handler = MkComponent {
+modal m = MkComponent {
   State = Modal t,
   state = m,
-  handler = handler,
+  handler = handle,
   vimpl = %search
 }
 
@@ -70,30 +88,5 @@ modal m handler = MkComponent {
 export
 root
   : Component rootT
-  -> (Key -> Modal rootT -> Response (Modal rootT) rootT)
-  -> Component rootT
-root init handler = modal (M init []) handler
-
-||| Push a new component onto the Modal context.
-export
-push
-  :  Component top
-  -> (cur : Modal rootT)
-  -> (top -> Component cur.topT -> Component cur.topT)
   -> Modal rootT
-push t cur f = M t (update :: cur.stack)
-  where
-    update : Maybe top -> Component cur.topT
-    update Nothing = cur.component
-    update (Just v) = f v cur.component
-
-||| delegate event handling to the wrapped component
-export
-delegate : Key -> Modal rootT -> Response (Modal rootT) rootT
-delegate key self = case handle key self.component of
-  Ignore => Ignore
-  Yield x => case pop self x of
-    Left next => Do next
-    Right v => Yield v
-  Do x  => Do $ {component := x} self
-  Run x => Run $ do pure $ {component := !x} self
+root init = M init []

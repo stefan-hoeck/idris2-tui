@@ -25,25 +25,35 @@ import public TUI.View
 %language ElabReflection
 
 
-||| A simple menu, useful for testing.
+||| A simple menu
 export
 testMenu : Component String
 testMenu = Menu.component ["foo", "bar", "baz"]
 
-||| Test modal components
+||| A component that represents a user-chosen value
+data TestModal = Default | Selected String
+
+||| Implement show for the component (and thereby View)
+Show TestModal where
+  show Default = "(a): Foo, (b): bar, (c): [select]"
+  show (Selected c) = "(a): Foo, (b): bar, (c): \{c}"
+
+||| Construct a TestModal component
 export
 testModal : Component String
-testModal = root (static "(a): Foo, (b): bar, (c): push") handle
+testModal = modal $ root $ active @{show} Default onKey
   where
-    handle : Key -> Modal String -> Response (Modal String) String
-    handle (Alpha 'a') _ = Yield $ Just "Foo"
-    handle (Alpha 'b') _ = Yield $ Just "Bar"
-    handle (Alpha 'c') s = Do $ push testMenu s merge_
-      where
-        merge_ : String -> Component s.topT -> Component s.topT
-        merge_ string top = ?hole
-    handle _           _ = Ignore
+    onSelect : Maybe String -> TestModal
+    onSelect Nothing  = Default
+    onSelect (Just s) = Selected s
 
+    onKey : Handler TestModal String
+    onKey (Alpha 'a') _            = Yield $ Just "Foo"
+    onKey (Alpha 'b') _            = Yield $ Just "Bar"
+    onKey (Alpha 'c') s            = Push testMenu onSelect
+    onKey Enter       Default      = Ignore
+    onKey Enter       (Selected s) = Yield $ Just s
+    onKey _           _            = Ignore
 
 partial export
 gallery : IO ()
