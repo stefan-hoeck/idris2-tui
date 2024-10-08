@@ -14,6 +14,7 @@ import System.File
 import TUI.Event
 import TUI.Painting
 import TUI.Component
+import TUI.Component.Stack
 
 
 %default total
@@ -142,31 +143,42 @@ namespace InputShim
 
 
 namespace MVC
-  ||| Run a top-level MVC statck.
-  |||
-  ||| Use this entry point if you to want MVC abstractions.
-  covering export
-  runMVC
+  covering
+  runView
     :  View stateT
     => (sources : List (EventSource stateT (Response stateT valueT)))
     -> stateT
     -> (Key -> stateT -> Response stateT valueT)
     -> IO (Maybe valueT)
-  runMVC sources init handler =
+  runView sources init handler =
     runTUI
       handler
       sources
       (View.paint Focused !(screen))
       liftUpdate
       init
+  where
+    ||| Lift a Response to an (IO Result).
+    |||
+    ||| Essentially, this interprets the `Response` DSL keywords. It is
+    ||| called by runComponent in MainLoop.idr.
+    liftUpdate
+      :  Response stateT valueT
+      -> stateT
+      -> IO (Result stateT valueT)
+    liftUpdate Ignore     self = pure $ Left self
+    liftUpdate (Yield x)  _    = pure $ Right x
+    liftUpdate (Do next)  _    = pure $ Left next
+    liftUpdate (Run next) _    = pure $ Left !next
+    liftUpdate (Push t m) self = assert_total $ idris_crash "unhandled Push"
 
   ||| Run the given component UI.
   |||
   ||| Use this entry point if your top-level state implements the
   ||| component interface.
-  covering export
+  export covering
   runComponent
-    :  (sources : List (EventSource (Component valueT) (Response (Component valueT) valueT)))
-    -> Component valueT
+    :  (self : Component valueT)
+    -> (sources : List (EventSource self.State (Response self.State valueT)))
     -> IO (Maybe valueT)
-  runComponent sources self = runMVC sources self handle
+  runComponent self sources = runView [] (modal $ root self) handle

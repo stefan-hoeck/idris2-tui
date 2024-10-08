@@ -9,7 +9,6 @@ import public TUI.Component.Editor
 import public TUI.Component.Form
 import public TUI.Component.Menu
 import public TUI.Component.Numeric
-import public TUI.Component.Stack
 import public TUI.Component.Table
 import public TUI.Component.TextInput
 import public TUI.Component.VList
@@ -41,7 +40,7 @@ Show TestModal where
 ||| Construct a TestModal component
 export
 testModal : Component String
-testModal = modal $ root $ active @{show} Default onKey
+testModal = active @{show} Default onKey
   where
     onSelect : Maybe String -> TestModal
     onSelect Nothing  = Default
@@ -58,7 +57,7 @@ testModal = modal $ root $ active @{show} Default onKey
 partial export
 gallery : IO ()
 gallery = do
-  let result : Maybe String = !(runComponent [] testModal)
+  let result : Maybe String = !(runComponent testModal [])
   case result of
     Nothing => putStrLn "User Canceled"
     Just choice => putStrLn $ "User selected: \{show choice}"

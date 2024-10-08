@@ -301,24 +301,28 @@ namespace SmartScale
 
   ||| Create a new SmartScale with the given list of containers.
   export
-  smartscale : List Raw.Container -> SmartScale
-  smartscale containers = MkSmartScale {
+  smartscale : List Raw.Container -> Component (List Raw.Container)
+  smartscale containers = active (MkSmartScale {
     containers = fromList header containers,
     scale      = Empty,
     barcode    = empty "Scan or Type '*' to enter barcode",
     -- xxx: qr code for URL to server.
     image      = placeholder "No Image" (MkArea 20 40)
-  } where
+  }) handle where
     header : String
     header = "Barcode      Tear      Gross     Net "
 
   ||| Main entry point
   export covering
   run : IO ()
-  run = ignore $ runMVC [On "Scale" onScale, On "Image" onImage] (smartscale []) handle
+  run = ignore $ runComponent (smartscale []) [] {-
+    On "Scale" onScale,
+    On "Image" onImage
+  ] -}
 
 ||| Entry point for basic scale command.
 export partial
+
 main : List String -> IO Builtin.Unit
 main ("--once" :: path :: _) = do
   weight <- getWeight path

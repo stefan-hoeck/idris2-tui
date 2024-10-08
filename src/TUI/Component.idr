@@ -55,19 +55,19 @@ mutual
       -> (vimpl   : View State)
       -> Component valueT
 
-export
+public export
 0 (.State) : Component valueT -> Type
 (.State) (MkComponent s _ _ _) = s
 
-export
+public export
 (.state) : (self : Component valueT) -> self.State
 (.state) (MkComponent _ s _ _) = s
 
-export
+public export
 (.handler) : (self : Component valueT) -> Handler self.State valueT
 (.handler) (MkComponent _ _ h _) = h
 
-export
+public export
 (.vimpl) : (self : Component valueT) -> View self.State
 (.vimpl) (MkComponent _ _ _ v) = v
 
@@ -123,18 +123,3 @@ active init handler = MkComponent {
   handler = handler,
   vimpl = %search
 }
-
-||| Lift a Response to an (IO Result).
-|||
-||| Essentially, this interprets the `Response` DSL keywords. It is
-||| called by runComponent in MainLoop.idr.
-export
-liftUpdate
-  :  Response stateT valueT
-  -> stateT
-  -> IO (Result stateT valueT)
-liftUpdate Ignore     self = pure $ Left self
-liftUpdate (Yield x)  _    = pure $ Right x
-liftUpdate (Do next)  _    = pure $ Left next
-liftUpdate (Run next) _    = pure $ Left !next
-liftUpdate (Push t m) self = assert_total $ idris_crash "unhandled Push"
