@@ -7,7 +7,6 @@ module TUI.Component
 import public TUI.View
 import public TUI.Event
 
-
 %default total
 
 
@@ -71,12 +70,7 @@ public export
 (.vimpl) : (self : Component valueT) -> View self.State
 (.vimpl) (MkComponent _ _ _ v) = v
 
-||| The result of updating a component
-public export
-0 Result : Type -> Type -> Type
-Result stateT valueT = Either stateT (Maybe valueT)
-
-||| A no-op handler
+||| a no-op handler
 ignore : Handler stateT valueT
 ignore _ _ = Ignore
 
@@ -123,3 +117,20 @@ active init handler = MkComponent {
   handler = handler,
   vimpl = %search
 }
+
+%hide EventSource.eventT
+
+||| TBD: does this need to exist?
+||| is this right?
+export
+adapt
+  :  (eventT -> stateT -> Response stateT valueT)
+  -> (eventT -> stateT -> Result stateT valueT)
+adapt handler event self = responseToResult $ handler event self
+where
+  responseToResult : Response stateT valueT -> Result stateT valueT
+  responseToResult Ignore     = pure $ Left self
+  responseToResult (Yield x)  = pure $ Right x
+  responseToResult (Do next)  = pure $ Left next
+  responseToResult (Run next) = pure $ Left !next
+  responseToResult (Push t m) = assert_total $ idris_crash "unhandled Push"

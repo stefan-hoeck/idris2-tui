@@ -65,7 +65,6 @@ namespace InputShim
   |||
   ||| @ sources  A list of event sources.
   ||| @ render   A function to render the current state to the screen.
-  ||| @ update   A function to run in response to an action.
   ||| @ init     The initial application state.
   |||
   ||| This is the lowest-level entry point. Use this if you don't want
@@ -73,15 +72,13 @@ namespace InputShim
   |||
   ||| The `update` function should return `Left` if processing should
   ||| continue, or `Right` to end computation with the final value.
-  export
-  covering
+  export covering
   runRaw
-    :  (sources : List (EventSource stateT actionT))
+    :  (sources : List (EventSource stateT valueT))
     -> (render  : stateT  -> Context Builtin.Unit)
-    -> (update  : actionT -> stateT -> IO (Either stateT valueT))
     -> (init    : stateT)
-    -> IO valueT
-  runRaw sources render update init = do
+    -> IO (Maybe valueT)
+  runRaw sources render init = do
     -- input-shim.py already put the terminal in raw mode
     putStrLn ""
     altScreen True
@@ -100,7 +97,7 @@ namespace InputShim
       altScreen False
 
     ||| The actual main loop
-    loop: stateT -> IO valueT
+    loop: stateT -> IO (Maybe valueT)
     loop state = do
       beginSyncUpdate
       clearScreen
@@ -113,72 +110,84 @@ namespace InputShim
       fflush stdout
 
       next <- getLine
-      next' <- case decodeNext next sources of
-        Right handler => update (handler state) state
-        Left  err     => do
+      case decodeNext next sources of
+        Right handler => case !(handler state) of
+          Left  next => loop next
+          Right res  => pure res
+        Left err     => do
           ignore $ fPutStrLn stderr $ show err
-          pure $ Left state
-      case next' of
-        Left  state => loop state
-        Right value => pure value
+          loop state
 
-  ||| Run a TUI application, decoding input escape sequences.
+  ||| Like runRaw, but handles decoding ANSI escape sequences into
+  ||| high-level key events.
   |||
-  ||| Use this function if you want escape sequence decoding, but do not
-  ||| want to use the MVC abstractions.
-  covering export
+  ||| Use this entry point when you want escape sequence decoding, but
+  ||| do not want to use the `View` or `Component` abstractions.
+  |||
+  ||| The `onKey` handler you supply should update the global
+  ||| application state in response to the given key press.
+  export covering
   runTUI
-    :  (onKey   : (Key -> stateT -> actionT))
-    -> (sources : List (EventSource stateT actionT))
+    :  (onKey   : (Key -> stateT -> Result stateT valueT))
+    -> (sources : List (EventSource stateT valueT))
     -> (render  : stateT -> Context Builtin.Unit)
-    -> (update  : actionT -> stateT -> IO (Either stateT valueT))
     -> (init    : stateT)
-    -> IO valueT
-  runTUI onKey sources render update init =
+    -> IO (Maybe valueT)
+  runTUI onKey sources render init =
     runRaw
       (On "Stdin" (handleEsc onKey) :: (liftEsc <$> sources))
       (render . unwrap)
-      (updateEsc update)
       (wrap init)
 
 
 namespace MVC
-  covering
+  ||| Like runTUI, but for `stateT` which implement `View`.
+  |||
+  ||| Accordingly, there is no need to supply an explicit `render`
+  ||| function.
+  export covering
   runView
     :  View stateT
-    => (sources : List (EventSource stateT (Response stateT valueT)))
+    => (onKey : (Key -> stateT -> Result stateT valueT))
+    -> (sources : List (EventSource stateT valueT))
     -> stateT
-    -> (Key -> stateT -> Response stateT valueT)
     -> IO (Maybe valueT)
-  runView sources init handler =
+  runView onKey sources init =
     runTUI
-      handler
+      onKey
       sources
       (View.paint Focused !(screen))
-      liftUpdate
       init
-  where
-    ||| Lift a Response to an (IO Result).
-    |||
-    ||| Essentially, this interprets the `Response` DSL keywords. It is
-    ||| called by runComponent in MainLoop.idr.
-    liftUpdate
-      :  Response stateT valueT
-      -> stateT
-      -> IO (Result stateT valueT)
-    liftUpdate Ignore     self = pure $ Left self
-    liftUpdate (Yield x)  _    = pure $ Right x
-    liftUpdate (Do next)  _    = pure $ Left next
-    liftUpdate (Run next) _    = pure $ Left !next
-    liftUpdate (Push t m) self = assert_total $ idris_crash "unhandled Push"
 
-  ||| Run the given component UI.
+  ||| Like runView, but we expect a `Response` instead of a `Result`.
   |||
-  ||| Use this entry point if your top-level state implements the
-  ||| component interface.
+  ||| This is an implementation detail for `runModal`.
   export covering
-  runComponent
-    :  (self : Component valueT)
-    -> (sources : List (EventSource self.State (Response self.State valueT)))
+  runMVC
+    :  View stateT
+    => (onKey : Handler stateT valueT)
+    -> (sources : List (EventSource stateT valueT))
+    -> stateT
     -> IO (Maybe valueT)
-  runComponent self sources = runView [] (modal $ root self) handle
+  runMVC onKey sources init = runView (adapt onKey) [] init
+
+  ||| Like runView, but for `Component` views, which know how to handle events.
+  |||
+  ||| XXX: components can only handle Key events, I need to fix that.
+  export covering
+  runComponent : Component valueT -> IO (Maybe valueT)
+  runComponent self = runMVC handle [] self
+
+{-
+  export covering
+  runModal
+    : View stateT
+    => (onKey : Handler stateT valueT)
+    -> (sources : List (EventSource stateT valueT))
+    -> stateT
+    -> IO (Maybe valueT)
+  runModal onKey sources init =
+    let inner := active init onKey
+        modal := modal $ M inner []
+    in ?hewl
+-}

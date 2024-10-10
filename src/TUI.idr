@@ -9,6 +9,7 @@ import public TUI.Component.Editor
 import public TUI.Component.Form
 import public TUI.Component.Menu
 import public TUI.Component.Numeric
+import public TUI.Component.Stack
 import public TUI.Component.Table
 import public TUI.Component.TextInput
 import public TUI.Component.VList
@@ -23,6 +24,20 @@ import public TUI.View
 %default total
 %language ElabReflection
 
+
+
+||| A simple counter
+testCounter : Component Nat
+testCounter = active @{show} 0 onKey
+  where
+    onKey : Key -> Nat -> Response Nat Nat
+    onKey Up    cur = Do $ cur + 1
+    onKey Down  cur = Do $ cur `minus` 1
+    onKey (Alpha 'i') cur = Do $ cur + 1
+    onKey (Alpha 'd') cur = Do $ cur `minus` 1
+    onKey Enter cur = Yield $ Just cur
+    onKey Escape cur = Yield Nothing
+    onKey _     _   = Ignore
 
 ||| A simple menu
 export
@@ -40,7 +55,7 @@ Show TestModal where
 ||| Construct a TestModal component
 export
 testModal : Component String
-testModal = active @{show} Default onKey
+testModal = root @{show} Default onKey
   where
     onSelect : Maybe String -> TestModal
     onSelect Nothing  = Default
@@ -57,7 +72,7 @@ testModal = active @{show} Default onKey
 partial export
 gallery : IO ()
 gallery = do
-  let result : Maybe String = !(runComponent testModal [])
+  let result : Maybe String = !(runComponent testModal)
   case result of
     Nothing => putStrLn "User Canceled"
     Just choice => putStrLn $ "User selected: \{show choice}"

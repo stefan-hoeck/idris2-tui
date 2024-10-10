@@ -19,6 +19,8 @@ import System.Concurrency
 import System
 import System.File
 import TUI
+import TUI.Component
+import TUI.Component.Stack
 import Util
 
 
@@ -302,7 +304,7 @@ namespace SmartScale
   ||| Create a new SmartScale with the given list of containers.
   export
   smartscale : List Raw.Container -> Component (List Raw.Container)
-  smartscale containers = active (MkSmartScale {
+  smartscale containers = root (MkSmartScale {
     containers = fromList header containers,
     scale      = Empty,
     barcode    = empty "Scan or Type '*' to enter barcode",
@@ -315,7 +317,7 @@ namespace SmartScale
   ||| Main entry point
   export covering
   run : IO ()
-  run = ignore $ runComponent (smartscale []) [] {-
+  run = ignore $ runComponent (smartscale []) {-
     On "Scale" onScale,
     On "Image" onImage
   ] -}

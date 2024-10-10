@@ -84,9 +84,13 @@ modal m = MkComponent {
   vimpl = %search
 }
 
-||| Construct a new `Modal` context with the given root component.
+||| Construct a modal root component.
+|||
+||| Only root components can handle the `Push` response.
 export
 root
-  : Component rootT
-  -> Modal rootT
-root init = M init []
+  : View stateT
+  => stateT
+  -> Handler stateT valueT
+  -> Component valueT
+root init handler = modal $ M (active init handler) []

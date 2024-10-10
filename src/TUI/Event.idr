@@ -14,21 +14,18 @@ import JSON.Derive
 %language ElabReflection
 
 
+||| The result of updating a component
+public export
+0 Result : Type -> Type -> Type
+Result stateT valueT = IO $ Either stateT (Maybe valueT)
+
 ||| A string event tag, and the associated event handler.
 public export
-record EventSource stateT actionT where
+record EventSource stateT valueT where
   constructor On
   tag         : String
   {auto impl  : FromJSON eventT}
-  handler     : eventT -> stateT -> actionT
-
-||| Mapping an event source applies `f` to the yielded action.
-export
-Functor (EventSource stateT) where
-  map f self = { handler := wrapInner } self
-    where
-      wrapInner : self.eventT -> stateT -> b
-      wrapInner event state = f $ self.handler event state
+  handler     : eventT -> stateT -> Result stateT valueT
 
 ||| Decode the top-level record in the given JSON.
 |||
@@ -44,10 +41,10 @@ match expected (JObject [
   ("contents", (JArray [rest]))
 ]) =
   if expected == got
-    then case fromJSON rest of
-      Left err => Left $ show err
-      Right v  => Right v
-    else Left "Incorrect tag"
+  then case fromJSON rest of
+    Left err => Left $ show err
+    Right v  => Right v
+  else Left "Incorrect tag"
 match _ _ = Left "Wrong shape"
 
 ||| Try each handler in succession until one decodes an event.
@@ -57,16 +54,16 @@ match _ _ = Left "Wrong shape"
 export
 decodeNext
   : String
-  -> List (EventSource stateT actionT)
-  -> Either String (stateT -> actionT)
+  -> List (EventSource stateT valueT)
+  -> Either String (stateT -> Result stateT valueT)
 decodeNext e sources = case parseJSON Virtual e of
     Left  err => Left "Parse Error: \{show err}"
     Right parsed => loop parsed sources
 where
   loop
     : JSON
-    -> List (EventSource stateT actionT)
-    -> Either String (stateT -> actionT)
+    -> List (EventSource stateT valueT)
+    -> Either String (stateT -> Result stateT valueT)
   loop parsed []        = Left "Unhandled event: \{e}"
   loop parsed (x :: xs) = case match @{x.impl} x.tag parsed of
       Left  err => loop parsed xs
@@ -92,10 +89,9 @@ data EscState stateT
   = HaveEsc (SnocList Char) stateT
   | Default stateT
 
-||| Replace the inner state type, according to `f`
-Functor EscState where
-  map f (HaveEsc e s) = HaveEsc e (f s)
-  map f (Default s)   = Default (f s)
+update : a -> EscState a -> EscState a
+update next (HaveEsc e _) = HaveEsc e next
+update next (Default _)   = Default next
 
 ||| Wrap the inner state type in an EscState
 export
@@ -126,24 +122,17 @@ Show s => Show (EscState s) where
 
 ||| Response to a receving a character from stdin.
 export
-data Action actionT
-  = Accept Char   -- accept escaped character.
-  | Reset         -- discard any existing escaped characters.
-  | Emit actionT  -- emit the action resulting from the key press.
-
-||| Map the inner action type according to `f`.
-export
-Functor Action where
-  map _ (Accept c) = (Accept c)
-  map _ Reset      = Reset
-  map f (Emit a)   = Emit (f a)
+data Action
+  = Accept Char -- accept escaped character.
+  | Reset       -- discard any existing escaped characters.
+  | Emit Key    -- emit the action resulting from the key press.
 
 ||| Decide what to do for the given character.
 |||
 ||| This is just a quick-and-dirty MVP. No attempt to decode
 ||| modifiers.
 export
-decode : Char -> EscState stateT -> Action Key
+decode : Char -> EscState stateT -> Action
 -- multi-char sequences in this clause
 decode c (HaveEsc esc _) = case esc :< c of
   [<]                  => Accept c
@@ -162,43 +151,37 @@ decode '\n'   (Default _) = Emit Enter
 decode '\t'   (Default _) = Emit Tab
 decode c      (Default _) = Emit (Alpha c)
 
-||| Convert raw characters into high-level actions.
+||| Convert a Key event handler into a Char event handler by decoding
+||| escape sequences.
 |||
 ||| @ onKey : Converts a Key to an action.
 export
 handleEsc
-  : (onKey : Key -> stateT -> actionT)
+  : (Key -> stateT -> Result stateT valueT)
   -> Char
   -> EscState stateT
-  -> Action actionT
-handleEsc onKey c self = (flip onKey) (unwrap self) <$> decode c self
+  -> Result (EscState stateT) valueT
+handleEsc onKey c self = inner (decode c self)
+where
+  inner : Action  -> Result (EscState stateT) valueT
+  inner (Accept c) = pure $ Left $ accept c self
+  inner Reset      = pure $ Left $ reset self
+  inner (Emit key) = case !(onKey key (unwrap self)) of
+    Left  state => pure $ Left $ Default state
+    Right value => pure $ Right value
 
-||| Update the escape state in response to an action.
-|||
-||| @update: Update the inner state in response to an inner action.
-export
-updateEsc
-  :  Monad m
-  => (update : actionT -> stateT -> m (Either stateT valueT))
-  -> Action actionT
-  -> EscState stateT
-  -> m (Either (EscState stateT) valueT)
-updateEsc _      (Accept c)    self = pure $ Left $ accept c self
-updateEsc _      Reset         self = pure $ Left $ reset self
-updateEsc update (Emit action) self = case !(update action (unwrap self)) of
-  Left  state => pure $ Left $ Default state
-  Right value => pure $ Right value
-
-||| Lift an event source to an EscState event source.
+||| Handles wrapping / unwrapping EscState from non-keyboard handlers.
 export
 liftEsc
-  :  EventSource stateT actionT
-  -> EventSource (EscState stateT) (Action actionT)
+  :  EventSource stateT valueT
+  -> EventSource (EscState stateT) valueT
 liftEsc = { handler $= wrapHandler }
   where
     wrapHandler
-      : (e -> stateT -> actionT)
+      : (e -> stateT -> Result stateT valueT)
       -> e
       -> EscState stateT
-      -> (Action actionT)
-    wrapHandler original event state = Emit $ original event (unwrap state)
+      -> Result (EscState stateT) valueT
+    wrapHandler original event self = case !(original event (unwrap self)) of
+      Left  x => pure $ Left  $ update x self
+      Right x => pure $ Right x
