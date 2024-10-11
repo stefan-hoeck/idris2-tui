@@ -97,7 +97,7 @@ namespace InputShim
       altScreen False
 
     ||| The actual main loop
-    loop: stateT -> IO (Maybe valueT)
+    loop : stateT -> IO (Maybe valueT)
     loop state = do
       beginSyncUpdate
       clearScreen
@@ -108,7 +108,6 @@ namespace InputShim
         render state
       endSyncUpdate
       fflush stdout
-
       next <- getLine
       case decodeNext next sources of
         Right handler => case !(handler state) of
@@ -135,7 +134,7 @@ namespace InputShim
     -> IO (Maybe valueT)
   runTUI onKey sources render init =
     runRaw
-      (On "Stdin" (handleEsc onKey) :: (liftEsc <$> sources))
+      ((onAnsiKey onKey) :: (liftEsc <$> sources))
       (render . unwrap)
       (wrap init)
 
@@ -177,17 +176,3 @@ namespace MVC
   export covering
   runComponent : Component valueT -> IO (Maybe valueT)
   runComponent self = runMVC handle [] self
-
-{-
-  export covering
-  runModal
-    : View stateT
-    => (onKey : Handler stateT valueT)
-    -> (sources : List (EventSource stateT valueT))
-    -> stateT
-    -> IO (Maybe valueT)
-  runModal onKey sources init =
-    let inner := active init onKey
-        modal := modal $ M inner []
-    in ?hewl
--}

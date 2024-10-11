@@ -118,7 +118,6 @@ active init handler = MkComponent {
   vimpl = %search
 }
 
-%hide EventSource.eventT
 
 ||| TBD: does this need to exist?
 ||| is this right?

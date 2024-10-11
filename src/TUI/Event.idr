@@ -1,8 +1,16 @@
 ||| Minimalist terminal UI framework.
 |||
 ||| This module provides partial support for decoding ansi input
-||| escape sequences into high-level keys. This is the kind of thing
-||| that curses would do for us, but we have to do ourselves.
+||| escape sequences into high-level keys.
+|||
+||| There are libraries that do this, but not ones written in
+||| Idris. This seems like territory for which Idris is well-suited,
+||| and I don't feel like getting into Idris FFI right now.
+|||
+||| At present, only a few core sequences are decoded that should work
+||| anywhere. In the future, I will expand this to cover iTerm2-style
+||| extensions supported by contemporary terminals, but this will
+||| require support for feature detection.
 module TUI.Event
 
 
@@ -20,12 +28,22 @@ public export
 Result stateT valueT = IO $ Either stateT (Maybe valueT)
 
 ||| A string event tag, and the associated event handler.
+|||
+||| XXX: The original intent of this type was to collect input from a
+||| dedicated thread, injecting it into the main event queue. But
+||| right now, all events are decoded as JSON records received on
+||| stdin.
+|||
+||| The tag identifies the event type, whose contents are then
+||| decoded. The resulting event is passed to the handler, to yield
+||| the output result.
 public export
 record EventSource stateT valueT where
   constructor On
   tag         : String
-  {auto impl  : FromJSON eventT}
-  handler     : eventT -> stateT -> Result stateT valueT
+  0 Event     : Type
+  {auto impl  : FromJSON Event}
+  handler     : Event -> stateT -> Result stateT valueT
 
 ||| Decode the top-level record in the given JSON.
 |||
@@ -94,24 +112,20 @@ update next (HaveEsc e _) = HaveEsc e next
 update next (Default _)   = Default next
 
 ||| Wrap the inner state type in an EscState
-export
 wrap : stateT -> EscState stateT
 wrap = Default
 
 ||| Project the wrapped value from the escape sequence state.
-export
 unwrap : EscState stateT -> stateT
 unwrap (HaveEsc _ s) = s
 unwrap (Default   s) = s
 
 ||| Enter escape state with empty buffer
-export
 accept : Char -> EscState stateT -> EscState stateT
 accept c (HaveEsc e s) = HaveEsc (e :< c) s
 accept c (Default s)   = HaveEsc [< c]    s
 
 ||| Exit escape state
-export
 reset : EscState stateT -> EscState stateT
 reset self = Default $ unwrap self
 
@@ -155,20 +169,26 @@ decode c      (Default _) = Emit (Alpha c)
 ||| escape sequences.
 |||
 ||| @ onKey : Converts a Key to an action.
-export
-handleEsc
+decodeANSI
   : (Key -> stateT -> Result stateT valueT)
   -> Char
   -> EscState stateT
   -> Result (EscState stateT) valueT
-handleEsc onKey c self = inner (decode c self)
-where
+decodeANSI onKey c self = inner (decode c self) where
   inner : Action  -> Result (EscState stateT) valueT
   inner (Accept c) = pure $ Left $ accept c self
   inner Reset      = pure $ Left $ reset self
   inner (Emit key) = case !(onKey key (unwrap self)) of
     Left  state => pure $ Left $ Default state
     Right value => pure $ Right value
+
+||| A Char EventSource that calls the given handler when a key is
+||| decoded.
+export
+onAnsiKey
+  : (Key -> stateT -> Result stateT valueT)
+  -> EventSource (EscState stateT) valueT
+onAnsiKey handler = On "Stdin" Char $ decodeANSI handler
 
 ||| Handles wrapping / unwrapping EscState from non-keyboard handlers.
 export
