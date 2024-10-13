@@ -111,22 +111,26 @@ paintNumeric symbol state window self = do
   sgr [Reset]
 
 ||| Interface for supported numeric types.
+export
 interface Supported a where
   (.value)    : Numeric a -> Maybe a
   symbol      : Char
   charToInput : Char -> Maybe Input
 
+export
 Supported Nat where
   (.value)       = parsePositive . toString
   symbol         = cast 0x2115
   charToInput c  = Digit <$> charToDigit c
 
+export
 Supported Integer where
   (.value)        = parseInteger . toString
   symbol          = cast 0x2124
   charToInput '-' = Just Minus
   charToInput c   = Digit <$> charToDigit c
 
+export
 Supported Double where
   (.value)        = parseDouble . toString
   symbol          = cast 0x211d
@@ -135,10 +139,10 @@ Supported Double where
   charToInput c   = Digit <$> charToDigit c
 
 ||| Handle a supported keypress.
-handleChar : Supported a => Char -> Numeric a -> Response (Numeric a) a
+handleChar : Supported a => Char -> Numeric a -> Result (Numeric a) a
 handleChar char self = case charToInput {a = a} char of
-  Nothing => Ignore
-  Just i  => Do $ insert i self
+  Nothing => ignore
+  Just i  => update $ insert i self
 
 ||| Implement Model for supported number types.
 export
@@ -150,16 +154,20 @@ Supported a => View (Numeric a) where
 export
 handle : Supported a => Handler (Numeric a) a
 handle (Alpha char) self = handleChar char self
-handle Delete       self = Do $ clear self
-handle Left         self = Yield Nothing
-handle Enter        self = Yield self.value
-handle Escape       self = Yield Nothing
-handle _            self = Ignore
+handle Delete       self = update $ clear self
+handle Left         self = exit
+handle Enter        self = exitWith self.value
+handle Escape       self = exit
+handle _            self = ignore
 
 ||| Create a numeric widget from a number value.
 export
-numeric : a -> Numeric a
-numeric value = N {
+new : Supported a => a -> Numeric a
+new value = N {
   digits   = empty, -- xxx: decode
   sign     = False
 }
+
+export
+numeric : Supported a => a -> Component a
+numeric value = active (new value) handle

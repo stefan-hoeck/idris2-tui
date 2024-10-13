@@ -56,37 +56,39 @@ arrowForIndex (FS n) = if FS n == last
   then arrow Up
   else arrow UpDown
 
-export
-View itemT => View (Exclusive itemT) where
-  size self =
-    let sizes   := View.size <$> self.choices
-        content := foldl Area.union (MkArea 0 0) sizes
-    in (MkArea 2 0) + content
+namespace Spinner
 
-  paint state window self = do
-    withState state $ showTextAt window.nw (arrowForIndex self.choice)
-    paint state (window.shiftRight 2) self.selected
+  export
+  View itemT => View (Exclusive itemT) where
+    size self =
+      let sizes   := View.size <$> self.choices
+          content := foldl Area.union (MkArea 0 0) sizes
+      in (MkArea 2 0) + content
 
-handle : Handler (Exclusive itemT) itemT
-handle Up     self = Do $ prev self
-handle Down   self = Do $ next self
-handle Left   self = Yield Nothing
-handle Escape self = Yield Nothing
-handle Enter  self = Yield $ Just self.selected
-handle _      _    = Ignore
+    paint state window self = do
+      withState state $ showTextAt window.nw (arrowForIndex self.choice)
+      paint state (window.shiftRight 2) self.selected
 
-||| Create an exclusive choice component from a non-empty list of choices.
-export
-menu
-  :  (choices    : List itemT)
-  -> {auto 0 prf : IsJust (natToFin 0 (length choices))}
-  -> Exclusive itemT
-menu choices = MkChoice choices $ fromJust $ natToFin 0 (length choices)
+  export
+  handle : Handler (Exclusive itemT) itemT
+  handle Up     self = update $ prev self
+  handle Down   self = update $ next self
+  handle Left   self = exit
+  handle Escape self = exit
+  handle Enter  self = yield self.selected
+  handle _      _    = ignore
 
-export
-component
-  :  View itemT
-  => (choices    : List itemT)
-  -> {auto 0 prf : IsJust (natToFin 0 (length choices))}
-  -> Component itemT
-component {itemT} choices = active (menu choices) handle
+  export
+  new
+    :  (choices    : List itemT)
+    -> {auto 0 prf : IsJust (natToFin 0 (length choices))}
+    -> Exclusive itemT
+  new choices = MkChoice choices $ fromJust $ natToFin 0 (length choices)
+
+  export
+  spinner
+    :  View itemT
+    => (choices    : List itemT)
+    -> {auto 0 prf : IsJust (natToFin 0 (length choices))}
+    -> Component itemT
+  spinner {itemT} choices = active (new choices) handle

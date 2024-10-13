@@ -168,7 +168,7 @@ namespace MVC
     -> (sources : List (EventSource stateT valueT))
     -> stateT
     -> IO (Maybe valueT)
-  runMVC onKey sources init = runView (adapt onKey) [] init
+  runMVC onKey sources init = runView onKey [] init
 
   ||| Like runView, but for `Component` views, which know how to handle events.
   |||

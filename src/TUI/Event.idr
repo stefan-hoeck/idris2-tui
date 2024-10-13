@@ -22,10 +22,35 @@ import JSON.Derive
 %language ElabReflection
 
 
-||| The result of updating a component
-public export
-0 Result : Type -> Type -> Type
-Result stateT valueT = IO $ Either stateT (Maybe valueT)
+namespace Result
+  ||| A function to update state in response to an event.
+  public export
+  0 Result : Type -> Type -> Type
+  Result stateT valueT = IO (Either stateT (Maybe valueT))
+
+  export
+  ignore : {auto self : stateT} -> Result stateT _
+  ignore {self} = pure $ Left self
+
+  export
+  exitWith : Maybe valueT -> Result _ valueT
+  exitWith result = pure $ Right result
+
+  export
+  exit : Result _ _
+  exit = exitWith Nothing
+
+  export
+  yield : valueT -> Result _ valueT
+  yield v = exitWith $ Just v
+
+  export
+  update : stateT -> Result stateT _
+  update next = pure $ Left next
+
+  export
+  run : IO stateT -> Result stateT _
+  run next = pure $ Left !next
 
 ||| A string event tag, and the associated event handler.
 |||
@@ -101,6 +126,16 @@ data Key
   | Escape
 %runElab derive "Key" [Ord, Eq, Show, FromJSON]
 
+public export
+0 EventHandler : Type -> Type -> Type -> Type
+EventHandler stateT valueT eventT = eventT -> stateT -> Result stateT valueT
+
+||| XXX: this is an interim type, which can be deleted once
+||| we've finished generalizing event handling.
+public export
+0 Handler : Type -> Type -> Type
+Handler stateT valueT = EventHandler stateT valueT Key
+
 ||| The state machine for escape sequence decoding.
 export
 data EscState stateT
@@ -112,10 +147,12 @@ update next (HaveEsc e _) = HaveEsc e next
 update next (Default _)   = Default next
 
 ||| Wrap the inner state type in an EscState
+export
 wrap : stateT -> EscState stateT
 wrap = Default
 
 ||| Project the wrapped value from the escape sequence state.
+export
 unwrap : EscState stateT -> stateT
 unwrap (HaveEsc _ s) = s
 unwrap (Default   s) = s

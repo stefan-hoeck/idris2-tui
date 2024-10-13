@@ -21,24 +21,23 @@ import TUI.Zipper.List
 ||| @ Editing  Currently editing a value.
 ||| @ Accepted Holds a legal value, and possibly the last editor state.
 public export
-data Editor valueT editorT
-  = Empty String
-  | Editing  editorT (Maybe valueT)  String
-  | Accepted valueT  (Maybe editorT) String
+data Editor valueT
+  = Empty    String
+  | Editing  (Component valueT) (Maybe valueT)             String
+  | Accepted valueT             (Maybe (Component valueT)) String
 
 ||| Defines how to create an editor for a value.
 public export
 interface
      View valueT
-  => View editorT
-  => Editable valueT editorT
+  => Editable valueT
 where
   constructor MkEditable
-  fromValue  : valueT  -> editorT
-  toValue    : editorT -> Maybe valueT
-  blank      : editorT
-  update     : Handler editorT valueT
+  fromValue  : valueT -> Component valueT
+  toValue    : Component valueT -> Maybe valueT
+  blank      : Component valueT
 
+{-
 ||| Get the current value out of the editor.
 |||
 ||| If in the empty state, returns Nothing. If in the editing state,
@@ -46,12 +45,14 @@ where
 ||| available. If in the accepted state, returns the accepted value.
 export
 (.value)
-  :  Editable valueT editorT
-  => Editor valueT editorT
+  :  Editable valueT
+  => Editor valueT
   -> Maybe valueT
 (.value) (Empty        _) = Nothing
 (.value) (Editing  x y _) = toValue x <+> y
 (.value) (Accepted x y _) = Just x
+
+{-
 
 ||| Construct an empty editor.
 export
@@ -66,10 +67,10 @@ accepted value placeholder = Accepted value Nothing placeholder
 ||| Construct an editor in the editing state.
 export
 editing
-  :  Editable valueT editorT
+  :  Editable valueT
   => valueT
   -> String
-  -> Editor valueT editorT
+  -> Editor valueT
 editing value ph = Editing (fromValue value) (Just value) ph
 
 ||| Transition to the editing state.
@@ -80,9 +81,9 @@ editing value ph = Editing (fromValue value) (Just value) ph
 ||| Has no effect if already editing.
 export
 edit
-  :  Editable valueT editorT
-  => Editor valueT editorT
-  -> Editor valueT editorT
+  :  Editable valueT
+  => Editor valueT
+  -> Editor valueT
 edit (Empty               ph) = Editing (blank {valueT = valueT}) Nothing  ph
 edit (Accepted v Nothing  ph) = Editing (fromValue v)             (Just v) ph
 edit (Accepted v (Just e) ph) = Editing e                         (Just v) ph
@@ -94,45 +95,45 @@ edit self                     = self
 ||| in the editing state.
 export
 commit
-  :  Editable valueT editorT
+  :  Editable valueT
   => valueT
-  -> Editor valueT editorT
-  -> Editor valueT editorT
+  -> Editor valueT
+  -> Editor valueT
 commit value self@(Editing e v ph) = Accepted value (Just e) ph
 commit _ self = self
 
 ||| Leave the editing state, restoring previous value if present.
 export
 rollback
-  :  Editable valueT editorT
-  => Editor valueT editorT
-  -> Editor valueT editorT
+  :  Editable valueT
+  => Editor valueT
+  -> Editor valueT
 rollback (Editing _ Nothing  ph) = Empty ph
 rollback (Editing e (Just v) ph) = Accepted v (Just e) ph
 rollback self                    = self
 
 ||| Update the editor by applying the inner action.
 liftUpdate
-  :  Editable valueT editorT
-  => editorT
-  -> Editor valueT editorT
-  -> Editor valueT editorT
+  :  Editable valueT
+  =>
+  -> Editor valueT
+  -> Editor valueT
 liftUpdate next self = case self of
   Editing e v ph => Editing next v ph
   _              => self
 
 ||| Update the editor by applying the inner action.
 liftEffect
-  :  Editable valueT editorT
-  => IO editorT
-  -> Editor valueT editorT
-  -> IO (Editor valueT editorT)
+  :  Editable valueT
+  => IO
+  -> Editor valueT
+  -> IO (Editor valueT)
 liftEffect next self = case self of
   Editing e v ph => do pure $ Editing !next v ph
   _              => pure self
 
 export
-Editable valueT editorT => View (Editor valueT editorT) where
+Editable valueT => View (Editor valueT) where
   size (Empty placeholder)  = size placeholder
   size (Editing e _ _)      = size e
   size (Accepted value _ _) = size value
@@ -143,9 +144,14 @@ Editable valueT editorT => View (Editor valueT editorT) where
     (Accepted value _ _)   => paint state window value
 
 export
-handle : Editable valueT editorT => Handler (Editor valueT editorT) valueT
+handle : Editable valueT => Handler (Editor valueT) valueT
 handle key self@(Editing e _ _) = case (update key e) of
-  Ignore           => Ignore
+  foo => ?hewl
+
+
+
+
+{-
   (Yield (Just v)) => Do  $ commit v self
   (Yield Nothing)  => Do  $ rollback self
   (Do f)           => Do  $ liftUpdate f self

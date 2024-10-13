@@ -78,14 +78,19 @@ View TextInput where
 ||| Implement Component for TextInput.
 export
 handle : Handler TextInput String
-handle Left      self = Do $ goLeft self
-handle Right     self = Do $ goRight self
-handle Delete    self = Do $ delete self
-handle (Alpha c) self = Do $ insert c self
-handle Enter     self = Yield $ Just $ toString self
-handle Escape    self = Yield Nothing
-handle _         self = Ignore
+handle Left      self = update $ goLeft self
+handle Right     self = update $ goRight self
+handle Delete    self = update $ delete self
+handle (Alpha c) self = update $ insert c self
+handle Enter     self = yield $ toString self
+handle Escape    self = exit
+handle _         self = ignore
 
+export
+textInput : String -> Component String
+textInput string = active (fromString string) handle
+
+{-
 ||| Make `String` `Editable` via `TextInput`
 export
 Editable String TextInput where

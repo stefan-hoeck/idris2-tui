@@ -15,12 +15,13 @@ import TUI.Zipper.List
 %default total
 
 
+{-
 ||| A field is a tuple of a label and a value editor.
 export
 record Field valueT editorT where
   constructor MkField
   label : String
-  value : Editor valueT editorT
+  value : Component valueT
 
 ||| Construct a field for an editable type
 export
