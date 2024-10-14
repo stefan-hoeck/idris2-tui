@@ -22,13 +22,17 @@ import public TUI.Event
 public export data Response : Type -> Type -> Type
 
 ||| A function which handles a key event in a component.
-public export 0    Handler  : Type -> Type -> Type
+|||
+||| This is distinct from `Event.Handler` in that it returns a
+||| `Response` rather than a `Result`.
+|||
+||| Note: this type alias is forward-declared, because mutual blocks
+||| do not workw ith records, owing to a bug in Idris.
+public export 0 Handler : Type -> Type -> Type
 
 ||| A reusable user-interface element.
 |||
-||| Component works together tied to `Stack` and `Modal`.
-|||
-|||
+||| Component is closely tied to `Stack` and `Modal`.
 public export covering
 record Component valueT where
   constructor MkComponent
@@ -36,6 +40,8 @@ record Component valueT where
   state   : State
   handler : Component.Handler State valueT
   vimpl   : View State
+
+-- implementations for forward-declared types
 
 public export
 data Response stateT valueT
@@ -46,6 +52,10 @@ data Response stateT valueT
 
 Handler stateT valueT = Key -> stateT -> IO $ Response stateT valueT
 
+
+-- Hide this projection function. we use (.state) instead. This
+-- suppresses warnings about `state` being shadowed in the definitions
+-- below.
 %hide Component.state
 
 ||| A component wraps a View, so a component is also a view.
@@ -55,7 +65,7 @@ View (Component _) where
   paint state window self = paint @{self.vimpl} state window self.state
 
 
-||| These functions define a DSL for handling events.
+||| These definitions make writing event handlers a bit nicer.
 namespace EventDSL
 
   ||| A generic response: update with the given IO action.
@@ -98,7 +108,7 @@ namespace EventDSL
     :  (top   : Component topT)
     -> (merge : Maybe topT -> stateT)
     -> IO (Response stateT valueT)
-  push c m = pure $ Push c m
+  push top merge = pure $ Push top merge
 
 ||| Update a component in response to an event.
 |||

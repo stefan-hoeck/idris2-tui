@@ -1,6 +1,6 @@
 ||| Minimalist terminal UI framework.
 |||
-module TUI.Component.Stack
+module TUI.Component.Modal
 
 import TUI.Component
 
