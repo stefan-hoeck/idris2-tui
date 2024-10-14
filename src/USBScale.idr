@@ -145,6 +145,7 @@ export partial
 spawn : String -> (Result -> IO Builtin.Unit) -> IO ThreadID
 spawn path post = fork (run post path)
 
+{-
 namespace SmartScale
   {- XXX: I've had to do this a few times, and argues for renaming
      `Measures.Unit` to something else, in spite of the fact that
@@ -321,12 +322,12 @@ namespace SmartScale
     On "Scale" onScale,
     On "Image" onImage
   ] -}
+-}
 
 ||| Entry point for basic scale command.
 export partial
-
 main : List String -> IO Builtin.Unit
 main ("--once" :: path :: _) = do
   weight <- getWeight path
   putStrLn $ show weight
-main _ = run
+main _ = ?fufkrun

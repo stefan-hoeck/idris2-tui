@@ -139,7 +139,7 @@ Supported Double where
   charToInput c   = Digit <$> charToDigit c
 
 ||| Handle a supported keypress.
-handleChar : Supported a => Char -> Numeric a -> Result (Numeric a) a
+handleChar : Supported a => Char -> Numeric a -> IO $ Response (Numeric a) a
 handleChar char self = case charToInput {a = a} char of
   Nothing => ignore
   Just i  => update $ insert i self
@@ -152,7 +152,7 @@ Supported a => View (Numeric a) where
 
 ||| Implement Model for supported number types.
 export
-handle : Supported a => Handler (Numeric a) a
+handle : Supported a => Component.Handler (Numeric a) a
 handle (Alpha char) self = handleChar char self
 handle Delete       self = update $ clear self
 handle Left         self = exit

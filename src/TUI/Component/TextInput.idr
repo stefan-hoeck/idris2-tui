@@ -77,7 +77,7 @@ View TextInput where
 
 ||| Implement Component for TextInput.
 export
-handle : Handler TextInput String
+handle : Component.Handler TextInput String
 handle Left      self = update $ goLeft self
 handle Right     self = update $ goRight self
 handle Delete    self = update $ delete self

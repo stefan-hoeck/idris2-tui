@@ -25,54 +25,76 @@ import public TUI.View
 %language ElabReflection
 
 
-
 ||| A simple counter
 testCounter : Component Nat
 testCounter = active @{show} 0 onKey
   where
-    onKey : Key -> Nat -> Response Nat Nat
-    onKey Up    cur = Do $ cur + 1
-    onKey Down  cur = Do $ cur `minus` 1
-    onKey (Alpha 'i') cur = Do $ cur + 1
-    onKey (Alpha 'd') cur = Do $ cur `minus` 1
-    onKey Enter cur = Yield $ Just cur
-    onKey Escape cur = Yield Nothing
-    onKey _     _   = Ignore
+    onKey : Component.Handler Nat Nat
+    onKey Up    cur = update $ cur + 1
+    onKey Down  cur = update $ cur `minus` 1
+    onKey (Alpha 'i') cur = update $ cur + 1
+    onKey (Alpha 'd') cur = update $ cur `minus` 1
+    onKey Enter cur = yield cur
+    onKey Escape cur = exit
+    onKey _     _   = ignore
 
 ||| A simple menu
 export
 testMenu : Component String
-testMenu = Menu.component ["foo", "bar", "baz"]
+testMenu = spinner ["foo", "bar", "baz"]
 
 ||| A component that represents a user-chosen value
-data TestModal = Default | Selected String
+data TestModal = Default String | Selected String String
 
 ||| Implement show for the component (and thereby View)
 Show TestModal where
-  show Default = "(a): Foo, (b): bar, (c): [select]"
-  show (Selected c) = "(a): Foo, (b): bar, (c): \{c}"
+  show (Default label)    = "\{label}\nNo Selection"
+  show (Selected label c) = "\{label}\n\{c}"
 
 ||| Construct a TestModal component
 export
-testModal : Component String
-testModal = root @{show} Default onKey
+testModal2 : Component String
+testModal2 = active @{show} (Default header) onKey
   where
-    onSelect : Maybe String -> TestModal
-    onSelect Nothing  = Default
-    onSelect (Just s) = Selected s
+    header : String
+    header = "Modal 2: (a): Baz, (b): Quux, (c): From Spinner"
 
-    onKey : Handler TestModal String
-    onKey (Alpha 'a') _            = Yield $ Just "Foo"
-    onKey (Alpha 'b') _            = Yield $ Just "Bar"
-    onKey (Alpha 'c') s            = Push testMenu onSelect
-    onKey Enter       Default      = Ignore
-    onKey Enter       (Selected s) = Yield $ Just s
-    onKey _           _            = Ignore
+    onSelect : Maybe String -> TestModal
+    onSelect Nothing  = Default  header
+    onSelect (Just s) = Selected header s
+
+    onKey : Component.Handler TestModal String
+    onKey (Alpha 'a') _              = yield "Baz"
+    onKey (Alpha 'b') _              = yield "Quux"
+    onKey (Alpha 'c') s              = push testMenu onSelect
+    onKey Enter       s@(Default _)  = ignore
+    onKey Enter       (Selected _ s) = yield s
+    onKey Escape      _              = exit
+    onKey _           _              = ignore
+
+testModal1 : Component String
+testModal1 = active @{show} (Default header) onKey
+  where
+    header : String
+    header = "Modal 1: (a): Foo, (b): Bar, (c): From Modal 2"
+
+    onSelect : Maybe String -> TestModal
+    onSelect Nothing = Default header
+    onSelect (Just s) = Selected header s
+
+    onKey : Component.Handler TestModal String
+    onKey (Alpha 'a') _              = yield "Foo"
+    onKey (Alpha 'b') _              = yield "Bar"
+    onKey (Alpha 'c') s              = push testModal2 onSelect
+    onKey Enter       s@(Default _)  = ignore
+    onKey Enter       (Selected _ s) = yield s
+    onKey Escape      _              = exit
+    onKey _           _              = ignore
 
 partial export
 gallery : IO ()
 gallery = do
-  let result : Maybe String = !(runComponent testModal)
+  let result : Maybe String = !(runComponent testModal1)
   case result of
     Nothing => putStrLn "User Canceled"
     Just choice => putStrLn $ "User selected: \{show choice}"
@@ -92,3 +114,4 @@ gallery = do
     field "nested"  testForm
   ]
   putStrLn ""
+xo

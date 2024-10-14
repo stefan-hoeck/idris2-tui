@@ -164,15 +164,16 @@ namespace MVC
   export covering
   runMVC
     :  View stateT
-    => (onKey : Handler stateT valueT)
+    => (onKey : Event.Handler stateT valueT)
     -> (sources : List (EventSource stateT valueT))
     -> stateT
     -> IO (Maybe valueT)
   runMVC onKey sources init = runView onKey [] init
 
-  ||| Like runView, but for `Component` views, which know how to handle events.
+  ||| Like runView, but for `Component` views, which know how to
+  ||| handle events on their own.
   |||
   ||| XXX: components can only handle Key events, I need to fix that.
   export covering
   runComponent : Component valueT -> IO (Maybe valueT)
-  runComponent self = runMVC handle [] self
+  runComponent self = runMVC handle [] (root self)

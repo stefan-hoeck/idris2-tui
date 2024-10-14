@@ -35,6 +35,8 @@ record Modal rootT where
   component : Component topT
   stack : Stack topT rootT
 
+%hide Modal.topT
+
 ||| Remove the top component from the modal stack.
 |||
 ||| @self The top-most modal component
@@ -55,22 +57,41 @@ push
   -> Modal rootT
 push t cur f = M t (f :: cur.stack)
 
+export
+root : Component rootT -> Modal rootT
+root component = M component []
+
+export
+handleComponent : Key -> (self : Component valueT) -> IO $ Response (Component valueT) valueT
+handleComponent key self = case !(self.handler key self.state) of
+  (Continue x) => update $ {state := !x} self
+  (Yield x)    => yield x
+  Exit         => exit
+  (Push t m)   => push t $ updateInner m
+where
+  updateInner : (Maybe a -> self.State) -> Maybe a -> Component valueT
+  updateInner m v = {state := m v} self
+
 ||| delegate event handling to the wrapped component
 export
-handle : Handler (Modal rootT) rootT
-handle key self = case handle key self.component of
-  Ignore => Ignore
-  Yield x => case pop self x of
-    Left next => Do next
-    Right v => Yield v
-  Do x  => Do $ {component := x} self
-  Run x => Run $ do pure $ {component := !x} self
-  Push t m => Do $ push t self m
+handle : Event.Handler (Modal rootT) rootT
+handle key self = case !(handleComponent key self.component) of
+  Continue x   => update $ {component := !x} self
+  Yield    x   => doPop (Just x)
+  Exit         => doPop Nothing
+  Push     x f => update $ push x self f
+where
+  doPop : (Maybe self.topT) -> Result (Modal rootT) rootT
+  doPop v = case pop self v of
+    Left  x => update x
+    Right x => exitWith x
 
 export
 View (Modal t) where
   size self = size self.component
   paint state window self = paint state window self.component
+
+{-
 
 ||| Lift a modal to a component
 export
@@ -84,13 +105,23 @@ modal m = MkComponent {
   vimpl = %search
 }
 
-||| Construct a modal root component.
-|||
-||| Only root components can handle the `Push` response.
+
+
+{-
+record Modal topT rootT where
+  constructor M
+  component : Component topT
+  merge : Maybe topT -> 
+  handler : Key -> s
+
 export
-root
-  : View stateT
-  => stateT
-  -> Handler stateT valueT
+push
+  :  (top  : Component topT)
+  -> (self : Component valueT)
+  -> (merge : Maybe a -> self.State)
   -> Component valueT
-root init handler = modal $ M (active init handler) []
+push top self merge = MkComponent {
+  State = Modal topT valueT 
+}
+
+

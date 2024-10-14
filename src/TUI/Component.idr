@@ -9,15 +9,61 @@ import public TUI.Event
 
 %default total
 
+-- forward-declare these types, because mutual blocks don't work with
+-- records.
+public export data Response : Type -> Type -> Type
+public export 0    Handler  : Type -> Type -> Type
 
 ||| A component pairs a viewable state with a handler.
-public export
+public export covering
 record Component valueT where
   constructor MkComponent
   0 State : Type
   state   : State
-  handler : Handler State valueT
+  handler : Component.Handler State valueT
   vimpl   : View State
+
+||| The result of handling an event
+public export
+data Response stateT valueT
+  = Continue (IO stateT)
+  | Yield valueT
+  | Exit
+  | Push (Component a) (Maybe a -> stateT)
+
+export
+continue : IO stateT -> IO (Response stateT _)
+continue state = pure $ Continue $ state
+
+export
+update : stateT -> IO (Response stateT _)
+update state = pure $ Continue $ pure state
+
+export
+yield : valueT -> IO (Response _ valueT)
+yield value = pure $ Yield value
+
+export
+exit : IO (Response _ _)
+exit = pure $ Exit
+
+export
+exitWith : Maybe valueT -> IO (Response _ valueT)
+exitWith Nothing  = exit
+exitWith (Just v) = yield v
+
+export
+ignore : {auto self : stateT} -> IO (Response stateT _)
+ignore = update self
+
+export
+push
+  :  (Component topT)
+  -> (Maybe topT -> stateT)
+  -> IO (Response stateT valueT)
+push c m = pure $ Push c m
+
+Handler stateT valueT = Key -> stateT -> IO $ Response stateT valueT
 
 ||| A component wraps a View, so a component is also a view.
 export
@@ -25,35 +71,12 @@ View (Component _) where
   size self = size @{self.vimpl} self.state
   paint state window self = paint @{self.vimpl} state window self.state
 
-||| This is the top-level handler for component, which is used by
-||| `runComponent` in MainLoop.idr
-export
-handle : Handler (Component valueT) valueT
-handle key self = case !(self.handler key self.state) of
-  Left  state  => pure $ Left $ {state := state} self
-  Right result => pure $ Right result
-
-||| Wrap a plain view to construct a static interface element.
-export
-static
-  : View stateT
-  => stateT
-  -> Component valueT
-static init = MkComponent {
-  State = stateT,
-  state = init,
-  handler = const (\self => Result.ignore {self = self}), -- see note
-  vimpl = %search
-}
-
--- Note: XXX, make it easier to write this exact thing.
-
 ||| Construct an active component by supplying both view and handler.
 export
 active
   : View stateT
   => stateT
-  -> Handler stateT valueT
+  -> Component.Handler stateT valueT
   -> Component valueT
 active init handler = MkComponent {
   State = stateT,

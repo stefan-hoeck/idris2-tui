@@ -70,7 +70,7 @@ namespace Spinner
       paint state (window.shiftRight 2) self.selected
 
   export
-  handle : Handler (Exclusive itemT) itemT
+  handle : Component.Handler (Exclusive itemT) itemT
   handle Up     self = update $ prev self
   handle Down   self = update $ next self
   handle Left   self = exit
