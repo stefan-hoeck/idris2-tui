@@ -27,7 +27,7 @@ import public TUI.View
 
 ||| A simple counter
 testCounter : Component Nat
-testCounter = active @{show} 0 onKey
+testCounter = component @{show} 0 onKey
   where
     onKey : Component.Handler Nat Nat
     onKey Up    cur = update $ cur + 1
@@ -54,7 +54,7 @@ Show TestModal where
 ||| Construct a TestModal component
 export
 testModal2 : Component String
-testModal2 = active @{show} (Default header) onKey
+testModal2 = component @{show} (Default header) onKey
   where
     header : String
     header = "Modal 2: (a): Baz, (b): Quux, (c): From Spinner"
@@ -73,7 +73,7 @@ testModal2 = active @{show} (Default header) onKey
     onKey _           _              = ignore
 
 testModal1 : Component String
-testModal1 = active @{show} (Default header) onKey
+testModal1 = component @{show} (Default header) onKey
   where
     header : String
     header = "Modal 1: (a): Foo, (b): Bar, (c): From Modal 2"

@@ -170,4 +170,4 @@ new value = N {
 
 export
 numeric : Supported a => a -> Component a
-numeric value = active (new value) handle
+numeric value = component (new value) handle

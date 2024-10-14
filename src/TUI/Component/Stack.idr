@@ -12,13 +12,21 @@ import TUI.Component
 |||
 ||| @top  The top type of the stack
 ||| @root The root type of the stack.
+|||
+||| Note: This was a tricky data-strcuture to get right. One key
+||| detail is that the top of the stack is a function which returns a
+||| component. The other key detail is the `top` index, which allows
+||| the type checker to recognize the empty stack at the type level.
+|||
+||| I've tried other variatons on this idea, and this seems to be the
+||| best.
 public export
 data Stack : (top : Type) -> (root : Type) -> Type where
   Nil  : Stack root root
   ||| @merge Function to merge top of the stack with the element beneath.
   (::) : (merge : Maybe top -> Component a) -> Stack a root -> Stack top root
 
-||| A Component which Introduces a Modal Context.
+||| A context for modal interaction.
 |||
 ||| @rootT Type of the value yielded by context.
 |||
@@ -29,99 +37,71 @@ data Stack : (top : Type) -> (root : Type) -> Type where
 ||| the stack, and the yielded value merged into the next stack
 ||| element, if any exists. If the stack is empty, then the `Modal`
 ||| itself yields the root value.
+|||
+||| Note: this type is needed to hide the `top` index on the stack,
+||| otherwise we could just use `Stack` itself as a component.
 public export
 record Modal rootT where
   constructor M
   component : Component topT
   stack : Stack topT rootT
 
+-- we can use `(.topT)` instead, which reads better anyway. `topT`
+-- just ends up shadowing useful type arguments. I wish for some
+-- better control over record elaboration in future versions of Idris.
+--
+-- the other way to handle this is to disable unbound implicits, but
+-- this then requires explicit quantification, which is overkill here.
 %hide Modal.topT
 
 ||| Remove the top component from the modal stack.
 |||
-||| @self The top-most modal component
-||| @v    The value to merge or yield.
+||| @self   The current modal context.
+||| @result The value to merge or yield.
 pop
   :  (self : Modal rootT)
-  -> (v : Maybe self.topT)
+  -> (result : Maybe self.topT)
   -> Either (Modal rootT) (Maybe rootT)
-pop (M top [])               v = Right v
-pop (M top (merge :: tail))  v = Left $ M (merge v) tail
+pop (M top [])               result = Right result
+pop (M top (merge :: tail))  result = Left $ M (merge result) tail
 
-||| Push a new component onto the Modal context.
-export
+||| Push a component into the Modal context, with the merge function.
 push
-  :  Component top
-  -> (cur : Modal rootT)
-  -> (Maybe top -> Component cur.topT)
+  :  Component topT
+  -> (self : Modal rootT)
+  -> (Maybe topT -> Component self.topT)
   -> Modal rootT
-push t cur f = M t (f :: cur.stack)
+push top self merge = M top (merge :: self.stack)
 
+||| Construct a new modal context with the given component.
+|||
+||| You shouldn't need to call this. It is used by `runComponent` in
+||| the `MainLoop` to wrap the root component.
 export
 root : Component rootT -> Modal rootT
 root component = M component []
 
-export
-handleComponent : Key -> (self : Component valueT) -> IO $ Response (Component valueT) valueT
-handleComponent key self = case !(self.handler key self.state) of
-  (Continue x) => update $ {state := !x} self
-  (Yield x)    => yield x
-  Exit         => exit
-  (Push t m)   => push t $ updateInner m
-where
-  updateInner : (Maybe a -> self.State) -> Maybe a -> Component valueT
-  updateInner m v = {state := m v} self
-
-||| delegate event handling to the wrapped component
+||| This is the top-level event handler for a modal context.
+|||
+||| You should not normally need to call this: it is called by
+||| `runComponent` in MainLoop.
 export
 handle : Event.Handler (Modal rootT) rootT
-handle key self = case !(handleComponent key self.component) of
-  Continue x   => update $ {component := !x} self
-  Yield    x   => doPop (Just x)
-  Exit         => doPop Nothing
-  Push     x f => update $ push x self f
+handle key self = case !(handle key self.component) of
+  Continue state => update $ {component := !state} self
+  Yield result   => doPop (Just result)
+  Exit           => doPop Nothing
+  Push top merge => update $ push top self merge
 where
   doPop : (Maybe self.topT) -> Result (Modal rootT) rootT
-  doPop v = case pop self v of
-    Left  x => update x
-    Right x => exitWith x
+  doPop result = case pop self result of
+    Left  state  => update state
+    Right result => exitWith result
 
+||| This is the default view implementation for Modal.
+|||
+||| It paints only the top-most component into the given window.
 export
 View (Modal t) where
   size self = size self.component
   paint state window self = paint state window self.component
-
-{-
-
-||| Lift a modal to a component
-export
-modal
-  : Modal t
-  -> Component t
-modal m = MkComponent {
-  State = Modal t,
-  state = m,
-  handler = handle,
-  vimpl = %search
-}
-
-
-
-{-
-record Modal topT rootT where
-  constructor M
-  component : Component topT
-  merge : Maybe topT -> 
-  handler : Key -> s
-
-export
-push
-  :  (top  : Component topT)
-  -> (self : Component valueT)
-  -> (merge : Maybe a -> self.State)
-  -> Component valueT
-push top self merge = MkComponent {
-  State = Modal topT valueT 
-}
-
-

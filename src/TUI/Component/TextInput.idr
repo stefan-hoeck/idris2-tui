@@ -88,7 +88,7 @@ handle _         self = ignore
 
 export
 textInput : String -> Component String
-textInput string = active (fromString string) handle
+textInput string = component (fromString string) handle
 
 {-
 ||| Make `String` `Editable` via `TextInput`
