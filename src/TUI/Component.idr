@@ -10,16 +10,6 @@ import public TUI.Event
 %default total
 
 
-||| A function which yields the next state.
-public export
-0 Update : Type -> Type
-Update stateT = stateT
-
-||| A function which yields an IO action of the next state.
-public export
-0 Effect : Type -> Type
-Effect stateT = IO stateT
-
 ||| A component pairs a viewable state with a handler.
 public export
 record Component valueT where

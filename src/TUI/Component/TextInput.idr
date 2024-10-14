@@ -36,19 +36,19 @@ toString : TextInput -> String
 toString self = pack $ toList self.chars
 
 export
-delete : TextInput -> Update TextInput
+delete : TextInput -> TextInput
 delete = {chars $= delete}
 
 export
-goLeft : TextInput -> Update TextInput
+goLeft : TextInput -> TextInput
 goLeft = {chars $= goLeft}
 
 export
-goRight : TextInput -> Update TextInput
+goRight : TextInput -> TextInput
 goRight = {chars $= goRight}
 
 export
-insert : Char -> TextInput -> Update TextInput
+insert : Char -> TextInput -> TextInput
 insert c = {chars $= insert c}
 
 ||| Implement View for TextInput
