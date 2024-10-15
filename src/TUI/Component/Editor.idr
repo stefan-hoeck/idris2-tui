@@ -1,6 +1,10 @@
 ||| Minimalist terminal UI Framework
 |||
 ||| A Component for editing values.
+|||
+||| XXX: It's unclear if this component still serves a purpose or if
+||| the `Modal` mechanism makes it obsolete. However, it's used by
+||| `Form` at the moment, so it stays.
 module TUI.Component.Editor
 
 
@@ -27,6 +31,9 @@ data Editor valueT
   | Accepted valueT             (Maybe (Component valueT)) String
 
 ||| Defines how to create an editor for a value.
+|||
+||| XXX: this interface may be obsolete with the new component
+||| arch.
 public export
 interface
      View valueT
@@ -37,7 +44,6 @@ where
   toValue    : Component valueT -> Maybe valueT
   blank      : Component valueT
 
-{-
 ||| Get the current value out of the editor.
 |||
 ||| If in the empty state, returns Nothing. If in the editing state,
@@ -52,16 +58,25 @@ export
 (.value) (Editing  x y _) = toValue x <+> y
 (.value) (Accepted x y _) = Just x
 
-{-
+
+||| Get the placeholder value from the editor.
+export
+(.placeholder)
+  :  Editable valueT
+  => Editor valueT
+  -> String
+(.placeholder) (Empty        ph) = ph
+(.placeholder) (Editing  _ _ ph) = ph
+(.placeholder) (Accepted _ _ ph) = ph
 
 ||| Construct an empty editor.
 export
-empty : String -> Editor _ _
+empty : String -> Editor _
 empty placeholder = Empty placeholder
 
 ||| Construct an editor initialized to a value.
 export
-accepted : a -> String -> Editor a _
+accepted : a -> String -> Editor a
 accepted value placeholder = Accepted value Nothing placeholder
 
 ||| Construct an editor in the editing state.
@@ -94,13 +109,13 @@ edit self                     = self
 ||| If this succeeds, preserves editing state. If this fails, remains
 ||| in the editing state.
 export
-commit
+accept
   :  Editable valueT
   => valueT
   -> Editor valueT
   -> Editor valueT
-commit value self@(Editing e v ph) = Accepted value (Just e) ph
-commit _ self = self
+accept value self@(Editing e v ph) = Accepted value (Just e) ph
+accept _ self = self
 
 ||| Leave the editing state, restoring previous value if present.
 export
@@ -112,26 +127,14 @@ rollback (Editing _ Nothing  ph) = Empty ph
 rollback (Editing e (Just v) ph) = Accepted v (Just e) ph
 rollback self                    = self
 
-||| Update the editor by applying the inner action.
-liftUpdate
-  :  Editable valueT
-  =>
-  -> Editor valueT
-  -> Editor valueT
-liftUpdate next self = case self of
-  Editing e v ph => Editing next v ph
-  _              => self
+||| Update the component when a value is merged into the editor
+||| subcomponent.
+merge : Component valueT -> Editor valueT -> Editor valueT
+merge e (Editing  _ v str) = Editing  e v        str
+merge e (Accepted v _ str) = Accepted v (Just e) str
+merge _ self               = self
 
-||| Update the editor by applying the inner action.
-liftEffect
-  :  Editable valueT
-  => IO
-  -> Editor valueT
-  -> IO (Editor valueT)
-liftEffect next self = case self of
-  Editing e v ph => do pure $ Editing !next v ph
-  _              => pure self
-
+||| Editor implements View for any Editable type
 export
 Editable valueT => View (Editor valueT) where
   size (Empty placeholder)  = size placeholder
@@ -144,18 +147,44 @@ Editable valueT => View (Editor valueT) where
     (Accepted value _ _)   => paint state window value
 
 export
-handle : Editable valueT => Handler (Editor valueT) valueT
-handle key self@(Editing e _ _) = case (update key e) of
-  foo => ?hewl
+handle : Editable valueT => Component.Handler (Editor valueT) valueT
+handle key self = case self of
+  Empty        _ => handleDefault key
+  Editing  c y _ => handleEditing c
+  Accepted x y _ => handleDefault key
+where
+  handleDefault : Key -> IO $ Response (Editor valueT) valueT
+  handleDefault Enter  = update $ edit self
+  handleDefault Escape = exitWith self.value
+  handleDefault _      = ignore
 
+  onMerge
+    :  (Maybe a -> Component valueT)
+    -> (Maybe a -> Editor valueT)
+  onMerge f result = merge (f result) self
 
+  handleEditing : Component valueT -> IO $ Response (Editor valueT) valueT
+  handleEditing editor = case !(handle key editor) of
+    Continue x => update $ Editing !x self.value self.placeholder
+    Yield    x => update $ accept x self
+    Exit       => update $ rollback self
+    (Push x f) => push x $ onMerge f -- see note below
 
+-- The editor may itself delegate to modal components, so we need to
+-- ensure that the inner editor component is updated in response.
 
-{-
-  (Yield (Just v)) => Do  $ commit v self
-  (Yield Nothing)  => Do  $ rollback self
-  (Do f)           => Do  $ liftUpdate f self
-  (Run f)          => Run $ liftEffect f self
-  (Push t m)       => ?handle_later
-handle Enter self = Do $ edit self
-handle _     _    = Ignore
+||| Construct a new editor for the given value, returning its concrete
+||| type.
+export
+new : Editable valueT => Maybe valueT -> String -> Editor valueT
+new Nothing  placeholder = empty placeholder
+new (Just v) placeholder = accepted v placeholder
+
+||| Construct a new editor as an opaque component.
+export
+editor
+  :  Editable valueT
+  => Maybe valueT
+  -> String
+  -> Component valueT
+editor value placeholder  = component (new value placeholder) handle
