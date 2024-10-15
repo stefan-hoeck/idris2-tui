@@ -5,6 +5,7 @@ module Barcode
 import Derive.Prelude
 import JSON.Derive
 import DirDB
+import TUI.View
 
 
 %language ElabReflection
@@ -85,3 +86,9 @@ PathSafe (Barcode) where
   toPath self@(UPC   xs) = toMaybe (all isDigit xs) $ show self
   toPath self@(User  xs) = toMaybe (all isDigit xs) $ show self
   fromPath = fromDigits
+
+||| The default view for Barcode is provided by the `show` blanket impl.
+export
+%hint
+viewImpl : View Barcode
+viewImpl = show
