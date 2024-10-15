@@ -7,50 +7,43 @@ import public Data.Vect
 import public Data.Vect.Quantifiers
 
 import TUI.View
+import TUI.Component
 import TUI.Component.Editor
-import Util
+import TUI.Component.HList
 import TUI.Zipper.List
+import Util
 
 
 %default total
 
 
-{-
-||| A field is a tuple of a label and a value editor.
+||| A field is a tuple label and a value editor.
 export
-record Field valueT editorT where
-  constructor MkField
+record Field valueT where
+  constructor F
   label : String
-  value : Component valueT
+  value : Editor valueT
 
-||| Construct a field for an editable type
+||| Construct a field for an editable type.
 export
 field
-  :  Editable valueT editorT
+  :  Editable valueT
   => String
-  -> (Maybe valueT)
-  -> Field valueT editorT
-field label Nothing      = MkField label (empty          "(empty)")
-field label (Just value) = MkField label (accepted value "(empty)")
-
-||| Lift a value to a field update.
-export
-update
-  :  Editor valueT editorT
-  -> Field valueT editorT
-  -> Field valueT editorT
-update next = {value := next}
+  -> Maybe valueT
+  -> String
+  -> Field valueT
+field label value placeholder = F label (new value placeholder)
 
 ||| Paint a single field.
 |||
 ||| The label and contents are justified according to the split value.
 export
 paintField
-  : Editable valueT editorT
+  : Editable valueT
   => Nat
   -> State
   -> Rect
-  -> Field valueT editorT
+  -> Field valueT
   -> Context ()
 paintField split state window self = do
   let (left, right) = hdivide window split
@@ -69,117 +62,91 @@ paintField split state window self = do
       withState state $ showTextAt left.nw self.label
       paint state right self.value
 
-{-
-||| Handle input for a single field, depending on its state.
+||| Handle input for a single field.
 |||
-||| If the field is in the Editing state, events are proxied to the
-||| wrapped view.
-|||
-||| If the field is in the Default state, events are intepreted as
-||| navigation commands.
+||| This wraps the updates of the underlying `Editor`.
 handleField
-  :  Key
-  -> Field valueT editorT
-  -> Response (Field valueT editorT) valueT
-handleField key self = case self of
-  Editing _ subview => case handleDynamic key subview of
-    Exit          => Update $ exit self
-    Update inner  => Update $ updateSubview self inner
-    Do     action => Do $ Lift action
-  Default _ subview => case key of
-    (Alpha c) => Update self
-    Left      => Exit
-    Right     => Update $ enter self
-    Up        => Do FocusPrev
-    Down      => Do FocusNext
-    Delete    => Update self
-    Enter     => Update $ enter self
-    Tab       => Do FocusNext
-    Escape    => Exit
--}
+  :  Editable valueT
+  => Component.Handler (Field valueT) valueT
+handleField key self = case !(handle key self.value) of
+  Continue state => update $ {value := !state} self
+  Yield result   => yield result
+  Exit           => exit
+  Push top merge => push top (onMerge merge)
+where
+  ||| Proxy this modal merge back down to the underlying editor.
+  onMerge : (Maybe a -> Editor valueT) -> Maybe a -> Field valueT
+  onMerge merge result = {value := merge result} self
 
-{-
-
-||| A form is a container of labeled views.
+||| A form is a heterogenous container of labeled components.
 |||
-||| The views are packed vertically, with labels visually aligned.
+||| The components are layed out automatically. Exactly one form field
+||| is focused at all times.
 |||
-||| One form field at a time may have focus.
+||| The form has two states: editing and navigation. When in editing,
+||| events pass to the selected form field. When in navigation mode,
+||| events modify the form itself.
 export
-record Form actionT where
+record Form (tys : Vect k Type) where
   constructor MkForm
-  fields      : VList (Field T) actionT
+  fields      : HList tys
   split       : Nat
-  contentSize : Area
 
-||| Implement View for Field
-|||
-||| This implementation depends on an implicit parent form, which
-||| provides the split value.
-%hint
-forForm
-  :  {auto parent : Form actionT}
-  -> View (Field actionT) (Action actionT)
-forForm {parent} = MkView {
-  size = vunion (MkArea parent.split 1) . size . (.view),
-  paint = paintField parent.split,
-  handle = handleField
-}
+||| When used, it aligns fields to the split value of the parent form.
+implementation [splitAt]
+     {split : Nat}
+  -> Editable valueT
+  => View (Field valueT)
+where
+  size self = vunion (MkArea split 1) (size self.value)
+  paint = paintField split
 
-||| Implement View for Field
-|||
-||| This implementation depends on an implicit parent form, which
-||| provides the split value.
-export
-%hint
-splitAt
-  :  (split : Nat)
-  -> View (Field actionT) (Action actionT)
-splitAt {split} = MkView {
-  size = vunion (MkArea split 1) . size . (.view),
-  paint = paintField split,
-  handle = handleField
-}
-
-||| Get the character width of the longest label in the form.
-maxLabelWidth : List (Field _) -> Nat
-maxLabelWidth fields = foldl (flip $ max . length . (.label)) 0 fields
-
-||| Render the form with its border
-paintForm : State -> Rect -> Form actionT -> IO ()
-paintForm state window self = do
-  let contents = shrink window
-  vline (contents.nw.shiftRight self.split) contents.size.height
-  case state of
-    Focused => box window
-    _       => pure ()
-  Container.paintVertical @{forForm} state contents self.fields
+||| View implementation for `Form`
+implementation
+     {k : Nat}
+  -> {tys : Vect k Type}
+  -> View (Form tys)
+where
+  size self = size self.fields
+  paint state window self = do
+    let contents = shrink window
+    vline (contents.nw.shiftRight self.split) contents.size.height
+    case state of
+      Focused => box window
+      _       => pure ()
+    paint state contents self.fields
 
 ||| handle form event
-handleForm
-  :  Key
-  -> Form actionT
-  -> Response (Form actionT) actionT
-handleForm key self = Container.liftResponse @{forForm} key update self.fields
+handleForm : Component.Handler (Form tys) (HVect tys)
+
+||| Construct a concrete form from a list of fields.
+|||
+||| @k        The number of fields.
+||| @tys      The type of each field.
+||| @editable Captures the editable implementation for each field value.
+||| @fields   The concrete list of fields
+export
+new
+  :  {k : Nat}
+  -> {tys : Vect (S k) Type}
+  -> {editable : All Editable tys}
+  -> (fields : All Field tys)
+  -> Form tys
+new fields = MkForm (new 0 mkfields) maxLabelWidth
   where
-    update : Container (Field actionT) -> Form actionT
-    update fields = { fields := fields } self
+    ||| Get the character width of the longest label in the form.
+    maxLabelWidth : Nat
+    maxLabelWidth = reduceAll max (length . label) 0 fields
 
-||| View implementation.
-export
-View (Form actionT) actionT where
-  size self = self.contentSize
-  paint     = paintForm
-  handle    = handleForm
+    ||| Construct a component for a single field.
+    |||
+    ||| `splitAt` is the `View` implementation which correctly
+    ||| aligns the field content to our split value.
+    |||
+    ||| Editable is the implementation required for `splitAt` to work.
+    mkfield : (Field valueT, Editable valueT) -> Component valueT
+    mkfield (f, e) = component @{splitAt {split = maxLabelWidth}} f handleField
 
-||| Construct a form from a list of field records
-export
-form : List (Field actionT) -> Form actionT
-form fields =
-  let
-    split = maxLabelWidth fields
-  in MkForm {
-    fields      = goRight $ rewind $ fromList fields,
-    split       = split,
-    contentSize = sizeVertical @{forForm} fields
-  }
+    ||| Convert the input list of fields to a list of components.
+    mkfields : All Component tys
+    mkfields = mapProperty mkfield $ zipPropertyWith MkPair fields editable
