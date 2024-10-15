@@ -3,13 +3,14 @@
 ||| A form is an editor for a heterogenous list of values.
 module TUI.Component.Form
 
+-- XXX: figure out what code breaks when these imports are made private.
 import public Data.Vect
 import public Data.Vect.Quantifiers
-
-import TUI.View
 import TUI.Component
 import TUI.Component.Editor
 import TUI.Component.HList
+import TUI.Layout
+import TUI.View
 import TUI.Zipper.List
 import Util
 
@@ -17,14 +18,20 @@ import Util
 %default total
 
 
-||| A field is a tuple label and a value editor.
+||| A field is a labeled value editor.
 export
 record Field valueT where
   constructor F
   label : String
   value : Editor valueT
 
-||| Construct a field for an editable type.
+||| Contruct a single field.
+|||
+||| @label       The field label
+||| @value       An optional initial value to populate the field.
+||| @placeholder The placeholder string to use for an empty field.
+|||
+||| A field can be constructed for any type implementing `Editable`.
 export
 field
   :  Editable valueT
@@ -35,6 +42,11 @@ field
 field label value placeholder = F label (new value placeholder)
 
 ||| Paint a single field.
+|||
+||| @split  The horizontal position to align field values to.
+||| @state  The drawing state, as with any paint function.
+||| @window The screen area to paint to, as with any paint function.
+||| @self   The field value to paint.
 |||
 ||| The label and contents are justified according to the split value.
 export
@@ -64,7 +76,7 @@ paintField split state window self = do
 
 ||| Handle input for a single field.
 |||
-||| This wraps the updates of the underlying `Editor`.
+||| This just wraps the updates of the underlying `Editor`.
 handleField
   :  Editable valueT
   => Component.Handler (Field valueT) valueT
@@ -74,14 +86,19 @@ handleField key self = case !(handle key self.value) of
   Exit           => exit
   Push top merge => push top (onMerge merge)
 where
+  ||| Some boilerplate:
   ||| Proxy this modal merge back down to the underlying editor.
   onMerge : (Maybe a -> Editor valueT) -> Maybe a -> Field valueT
   onMerge merge result = {value := merge result} self
 
+||| The focus state of a form
+data FocusState = Edit | Submit | Cancel
+
 ||| A form is a heterogenous container of labeled components.
 |||
-||| The components are layed out automatically. Exactly one form field
-||| is focused at all times.
+||| Form fields are placed automatically.
+|||
+||| Exactly one form field is focused at all times.
 |||
 ||| The form has two states: editing and navigation. When in editing,
 ||| events pass to the selected form field. When in navigation mode,
@@ -89,8 +106,9 @@ where
 export
 record Form (tys : Vect k Type) where
   constructor MkForm
-  fields      : HList tys
-  split       : Nat
+  fields : HList tys
+  split  : Nat
+  focus  : FocusState
 
 ||| When used, it aligns fields to the split value of the parent form.
 implementation [splitAt]
@@ -102,9 +120,10 @@ where
   paint = paintField split
 
 ||| View implementation for `Form`
+export
 implementation
      {k : Nat}
-  -> {tys : Vect k Type}
+  -> {tys : Vect (S k) Type} -- see note below
   -> View (Form tys)
 where
   size self = size self.fields
@@ -114,10 +133,46 @@ where
     case state of
       Focused => box window
       _       => pure ()
-    paint state contents self.fields
+    contents <- packTop  fieldsState contents self.fields
+    contents <- packLeft cancelState contents "Cancel"
+    contents <- packLeft submitState contents "Submit"
+    pure ()
+  where
+    fieldsState : State
+    fieldsState = case self.focus of
+      Edit   => Focused
+      _      => Normal
+
+    submitState : State
+    submitState = case self.focus of
+      Submit => Focused -- XXX: show as disabled when form is invalid
+      _      => Normal
+
+    cancelState : State
+    cancelState = case self.focus of
+      Cancel => Focused
+      _      => Normal
+
+-- Note: it turns out `Vect (S k)` is key here. If we naively write
+-- `Vect k`, Idris fails to resolve the `View` implementation in
+-- HList.
 
 ||| handle form event
-handleForm : Component.Handler (Form tys) (HVect tys)
+handleForm : {k : Nat} -> {tys : Vect k Type} -> Component.Handler (Form tys) (HVect tys)
+handleForm key self = case (key, self.focus) of
+  (Tab, _)        => update $ {fields $= prev} self
+  (_, Edit)       => handleEdit
+  (Enter, Submit) => case ?getValues of
+    Nothing => ignore
+    Just v  => yield v
+  (Enter, Cancel) => exit
+  (Escape, _)     => exit
+  (Up, _)         => update $ {fields $= prev} self
+  (Down, _)       => update $ {fields $= next} self
+  _               => ignore
+where
+  handleEdit : IO $ Response (Form tys) (HVect tys)
+  handleEdit = update $ {fields := ?hole} self
 
 ||| Construct a concrete form from a list of fields.
 |||
@@ -132,7 +187,7 @@ new
   -> {editable : All Editable tys}
   -> (fields : All Field tys)
   -> Form tys
-new fields = MkForm (new 0 mkfields) maxLabelWidth
+new fields = MkForm (new 0 mkfields) maxLabelWidth Edit
   where
     ||| Get the character width of the longest label in the form.
     maxLabelWidth : Nat

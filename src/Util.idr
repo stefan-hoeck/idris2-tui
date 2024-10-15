@@ -212,6 +212,18 @@ namespace Data.Vect.Quantifiers
   updateAt FZ     f (x :: xs) = f x :: xs
   updateAt (FS i) f (x :: xs) = x :: updateAt i f xs
 
+  ||| Update the value at the index, without changing the type.
+  public export
+  replaceAt
+    :  {k : Nat}
+    -> {xs : Vect k Type}
+    -> (i : Fin k)
+    -> (value : p (index i xs))
+    -> All p xs
+    -> All p xs
+  replaceAt FZ     v (_ :: xs) = v :: xs
+  replaceAt (FS i) v (y :: xs) = y :: replaceAt i v xs
+
   ||| get the value at the index
   public export
   get
