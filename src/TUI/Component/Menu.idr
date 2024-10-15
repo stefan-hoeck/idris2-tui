@@ -15,6 +15,9 @@ import Util
 %default total
 
 
+||| XXX: this could easily support multiple selection!
+
+
 ||| Represents an exclusive choice
 export
 record Exclusive itemT where
