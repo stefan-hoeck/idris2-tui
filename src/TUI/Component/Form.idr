@@ -18,14 +18,18 @@ import Util
 %default total
 
 
-||| A field is a labeled value editor.
-export
+||| A field is a labeled Component.
+|||
+||| Use the `F` constructor if you want control over which component
+||| is used. To use the default component for a particular type, see
+||| the `field` function.
+public export
 record Field valueT where
   constructor F
   label : String
-  value : Editor valueT
+  value : Component valueT
 
-||| Contruct a single field.
+||| Contruct a field using the default component for the given value type.
 |||
 ||| @label       The field label
 ||| @value       An optional initial value to populate the field.
@@ -37,9 +41,8 @@ field
   :  Editable valueT
   => String
   -> Maybe valueT
-  -> String
   -> Field valueT
-field label value placeholder = F label (new value placeholder)
+field label value = F label $ editable value
 
 ||| Paint a single field.
 |||
@@ -51,35 +54,27 @@ field label value placeholder = F label (new value placeholder)
 ||| The label and contents are justified according to the split value.
 export
 paintField
-  : Editable valueT
-  => Nat
+  :  Nat
   -> State
   -> Rect
   -> Field valueT
   -> Context ()
 paintField split state window self = do
   let (left, right) = hdivide window split
-  case (state, self.value) of
-    (Focused, Editing editor _ _) => do
+  case state of
+    Focused => do
       sgr [SetStyle SingleUnderline]
       showTextAt left.nw self.label
       sgr [Reset]
       paint Focused right self.value
-    (Focused, _) => do
-      reverseVideo
-      showTextAt left.nw self.label
-      sgr [Reset]
-      paint Normal right self.value
-    (state, _) => do
+    state => do
       withState state $ showTextAt left.nw self.label
       paint state right self.value
 
 ||| Handle input for a single field.
 |||
 ||| This just wraps the updates of the underlying `Editor`.
-handleField
-  :  Editable valueT
-  => Component.Handler (Field valueT) valueT
+handleField : Component.Handler (Field valueT) valueT
 handleField key self = case !(handle key self.value) of
   Continue state => update $ {value := !state} self
   Yield result   => yield result
@@ -88,7 +83,7 @@ handleField key self = case !(handle key self.value) of
 where
   ||| Some boilerplate:
   ||| Proxy this modal merge back down to the underlying editor.
-  onMerge : (Maybe a -> Editor valueT) -> Maybe a -> Field valueT
+  onMerge : (Maybe a -> Component valueT) -> Maybe a -> Field valueT
   onMerge merge result = {value := merge result} self
 
 ||| The focus state of a form
@@ -113,8 +108,7 @@ record Form (tys : Vect k Type) where
 ||| When used, it aligns fields to the split value of the parent form.
 implementation [splitAt]
      {split : Nat}
-  -> Editable valueT
-  => View (Field valueT)
+  -> View (Field valueT)
 where
   size self = vunion (MkArea split 1) (size self.value)
   paint = paintField split
@@ -126,17 +120,18 @@ implementation
   -> {tys : Vect (S k) Type} -- see note below
   -> View (Form tys)
 where
-  size self = size self.fields
+  size self = size @{vertical} self.fields
   paint state window self = do
     let contents = shrink window
     vline (contents.nw.shiftRight self.split) contents.size.height
     case state of
       Focused => box window
       _       => pure ()
-    contents <- packTop  fieldsState contents self.fields
-    contents <- packLeft cancelState contents "Cancel"
-    contents <- packLeft submitState contents "Submit"
-    pure ()
+    ignore $ packTop @{vertical} fieldsState contents self.fields
+    withState cancelState $ do
+      showTextAt contents.sw "[Cancel]"
+    withState submitState $ do
+      showTextAt (contents.sw.shiftRight (length "[Cancel]" + 2)) "[Submit]"
   where
     fieldsState : State
     fieldsState = case self.focus of
@@ -153,25 +148,61 @@ where
       Cancel => Focused
       _      => Normal
 
-||| This handler aims to follow typical ARIA keybindings.
+||| Advance to the next component.
 |||
-||| We can't completely support this until the the library implements
-||| support for modifier keys (e.g. Shift + TAB).
-ariaKeys : {k : Nat} -> {tys : Vect k Type} -> Component.Handler (Form tys) (HVect tys)
+||| When we reach the end of the field list, focus transfers to the
+||| cancel button, then the submit button, then wraps back around to
+||| the first component.
+export
+next
+  :  {k : Nat}
+  -> {tys : Vect (S k) Type}
+  -> Form tys
+  -> Form tys
+next self = case self.focus of
+  Edit => if self.fields.selection == last
+    then {focus := Cancel} self
+    else {fields $= next} self
+  Cancel => {focus := Submit} self
+  Submit => {focus := Edit, fields $= choose 0} self
+
+||| This handler trys to follow typical ARIA keybindings.
+|||
+||| We can't completely support ARIA patterns until the the library
+||| implements support for modifier keys (e.g. Shift + TAB).
+ariaKeys
+  :  {k : Nat}
+  -> {tys : Vect (S k) Type}
+  -> Component.Handler (Form tys) (HVect tys)
 ariaKeys key self = case (key, self.focus) of
-  (Tab, _)        => update $ {fields $= prev} self
+  (Tab, _)        => update $ next self
   (_, Edit)       => handleEdit
-  (Enter, Submit) => case ?getValues of
-    Nothing => ignore
-    Just v  => yield v
+  (Enter, Submit) => onSubmit
   (Enter, Cancel) => exit
   (Escape, _)     => exit
-  (Up, _)         => update $ {fields $= prev} self
-  (Down, _)       => update $ {fields $= next} self
   _               => ignore
 where
+  validate : All Maybe a -> Maybe (HVect a)
+  validate [] = Just []
+  validate (x :: xs) = case isItJust x of
+    Yes _ => (fromJust x ::) <$> validate xs
+    No _  => Nothing
+
+  onMerge : (Maybe a -> HList tys) -> Maybe a -> Form tys
+  onMerge merge result = {fields := merge result} self
+
   handleEdit : IO $ Response (Form tys) (HVect tys)
-  handleEdit = update $ {fields := ?hole} self
+  handleEdit = case !(handle key self.fields) of
+    Continue state => update $ {fields := !state} self
+    Yield _        => update $ next self
+    Exit           => ignore
+    Push top merge => push top $ onMerge merge
+
+  ||| validate form fields
+  onSubmit : IO $ Response (Form tys) (HVect tys)
+  onSubmit = case validate self.fields.values of
+    Nothing => ignore
+    Just values => yield values
 
 ||| Construct a concrete form from a list of fields.
 |||
@@ -183,7 +214,6 @@ export
 new
   :  {k : Nat}
   -> {tys : Vect (S k) Type}
-  -> {editable : All Editable tys}
   -> (fields : All Field tys)
   -> Form tys
 new fields = MkForm (new 0 mkfields) maxLabelWidth Edit
@@ -198,9 +228,36 @@ new fields = MkForm (new 0 mkfields) maxLabelWidth Edit
     ||| aligns the field content to our split value.
     |||
     ||| Editable is the implementation required for `splitAt` to work.
-    mkfield : (Field valueT, Editable valueT) -> Component valueT
-    mkfield (f, e) = component @{splitAt {split = maxLabelWidth}} f handleField
+    mkfield : Field valueT -> Component valueT
+    mkfield f = component @{splitAt {split = maxLabelWidth}} {
+      state   = f,
+      handler = handleField,
+      get     = ((.value) . (.value))
+    }
 
     ||| Convert the input list of fields to a list of components.
     mkfields : All Component tys
-    mkfields = mapProperty mkfield $ zipPropertyWith MkPair fields editable
+    mkfields = mapProperty mkfield fields
+
+||| Construct a form component that uses ARIA keys for navigation and editing.
+|||
+||| @k        The number of fields.
+||| @tys      The type of each field.
+||| @editable Proof that all field types are editable.
+||| @fields   A list of values to populate the form.
+|||
+||| The value of the form is yielded to the parent when the user
+||| explicitly submits the form value. Directly retrieving the value
+||| via (.value) is not supported at this time.
+export
+ariaForm
+  :  {k : Nat}
+  -> {tys : Vect (S k) Type}
+  -> (fields : All Field tys)
+  -> Component (HVect tys)
+ariaForm fields = component {
+  stateT = Form tys,
+  state = new fields,
+  handler = ariaKeys,
+  get = unavailable -- see note above
+}

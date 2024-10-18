@@ -8,6 +8,7 @@ import Data.Fin
 import Data.String
 import Data.SnocList
 import TUI.Component
+import TUI.Component.Editor
 import Util
 
 
@@ -116,12 +117,14 @@ interface Supported a where
   (.value)    : Numeric a -> Maybe a
   symbol      : Char
   charToInput : Char -> Maybe Input
+  zero        : a
 
 export
 Supported Nat where
   (.value)       = parsePositive . toString
   symbol         = cast 0x2115
   charToInput c  = Digit <$> charToDigit c
+  zero           = 0
 
 export
 Supported Integer where
@@ -129,6 +132,7 @@ Supported Integer where
   symbol          = cast 0x2124
   charToInput '-' = Just Minus
   charToInput c   = Digit <$> charToDigit c
+  zero            = 0
 
 export
 Supported Double where
@@ -137,6 +141,7 @@ Supported Double where
   charToInput '-' = Just Minus
   charToInput '.' = Just Dot
   charToInput c   = Digit <$> charToDigit c
+  zero            = 0
 
 ||| Handle a supported keypress.
 handleChar : Supported a => Char -> Numeric a -> IO $ Response (Numeric a) a
@@ -170,4 +175,12 @@ new value = N {
 
 export
 numeric : Supported a => a -> Component a
-numeric value = component (new value) handle
+numeric value = component (new value) handle (.value)
+
+export
+%hint
+editableImpl : Show a => Supported a => Editable a
+editableImpl = MkEditable @{show} {
+  fromValue = numeric,
+  blank     = numeric zero
+}

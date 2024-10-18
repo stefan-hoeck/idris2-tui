@@ -94,4 +94,8 @@ namespace Spinner
     => (choices    : List itemT)
     -> {auto 0 prf : IsJust (natToFin 0 (length choices))}
     -> Component itemT
-  spinner {itemT} choices = component (new choices) handle
+  spinner {itemT} choices = component {
+    state   = (new choices),
+    handler = handle,
+    get     =  Just . (.selected)
+  }

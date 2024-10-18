@@ -296,7 +296,7 @@ namespace SmartScale
     barcode    = Nothing,
     -- xxx: qr code for URL to server.
     image      = placeholder "No Image" (MkArea 20 40)
-  }) handle where
+  }) handle unavailable where
     header : String
     header = "Barcode      Tear      Gross     Net "
 

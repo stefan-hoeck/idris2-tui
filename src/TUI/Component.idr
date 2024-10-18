@@ -39,6 +39,7 @@ record Component valueT where
   0 State : Type
   state   : State
   handler : Component.Handler State valueT
+  get     : State -> Maybe valueT
   vimpl   : View State
 
 -- implementations for forward-declared types
@@ -52,6 +53,10 @@ data Response stateT valueT
 
 Handler stateT valueT = Key -> stateT -> IO $ Response stateT valueT
 
+||| Get the value from the component, if it is available.
+export
+(.value) : Component valueT -> Maybe valueT
+(.value) self = self.get self.state
 
 -- Hide this projection function. we use (.state) instead. This
 -- suppresses warnings about `state` being shadowed in the definitions
@@ -66,7 +71,7 @@ View (Component _) where
 
 
 ||| These definitions make writing event handlers a bit nicer.
-namespace EventDSL
+namespace ComponentDSL
 
   ||| A generic response: update with the given IO action.
   export
@@ -110,6 +115,14 @@ namespace EventDSL
     -> IO (Response stateT valueT)
   push top merge = pure $ Push top merge
 
+  ||| A getter function which always returns Nothing
+  |||
+  ||| This is for components which cannot yield a partial value, or
+  ||| which are still in development.
+  export
+  unavailable : stateT -> Maybe valueT
+  unavailable _ = Nothing
+
 ||| Update a component in response to an event.
 |||
 ||| This wraps the stored handler, which operates on `State`, turning
@@ -130,12 +143,14 @@ where
 export
 component
   : View stateT
-  => stateT
-  -> Component.Handler stateT valueT
+  => (state   : stateT)
+  -> (handler : Component.Handler stateT valueT)
+  -> (get     : stateT -> Maybe valueT)
   -> Component valueT
-component init handler = MkComponent {
+component init handler get = MkComponent {
   State = stateT,
   state = init,
   handler = handler,
+  get = get,
   vimpl = %search
 }

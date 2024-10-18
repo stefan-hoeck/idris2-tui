@@ -88,14 +88,11 @@ handle _         self = ignore
 
 export
 textInput : String -> Component String
-textInput string = component (fromString string) handle
+textInput string = component (fromString string) handle (Just . toString)
 
-{-
 ||| Make `String` `Editable` via `TextInput`
 export
-Editable String TextInput where
-  fromValue = TextInput.fromString
-  toValue   = Just . TextInput.toString
-  blank     = TextInput.empty
-  update    = handle
+Editable String where
+  fromValue = textInput
+  blank     = textInput ""
 

@@ -86,8 +86,7 @@ root component = M component []
 ||| You should not normally need to call this: it is called by
 ||| `runComponent` in MainLoop.
 export
-handle : Event.Handler (Modal rootT) rootT eventT
-{-
+handle : Event.Handler (Modal rootT) rootT Key
 handle event self = case !(handle event self.component) of
   Continue state => update $ {component := !state} self
   Yield result   => doPop (Just result)
@@ -98,7 +97,6 @@ where
   doPop result = case pop self result of
     Left  state  => update state
     Right result => exitWith result
--}
 
 ||| This is the default view implementation for Modal.
 |||

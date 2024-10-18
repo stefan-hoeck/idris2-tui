@@ -27,7 +27,7 @@ import public TUI.View
 
 ||| A simple counter
 testCounter : Component Nat
-testCounter = component @{show} 0 onKey
+testCounter = component @{show} 0 onKey unavailable
   where
     onKey : Component.Handler Nat Nat
     onKey Up    cur = update $ cur + 1
@@ -54,7 +54,7 @@ Show TestModal where
 ||| Construct a TestModal component
 export
 testModal2 : Component String
-testModal2 = component @{show} (Default header) onKey
+testModal2 = component @{show} (Default header) onKey unavailable
   where
     header : String
     header = "Modal 2: (a): Baz, (b): Quux, (c): From Spinner"
@@ -73,7 +73,7 @@ testModal2 = component @{show} (Default header) onKey
     onKey _           _              = ignore
 
 testModal1 : Component String
-testModal1 = component @{show} (Default header) onKey
+testModal1 = component @{show} (Default header) onKey unavailable
   where
     header : String
     header = "Modal 1: (a): Foo, (b): Bar, (c): From Modal 2"
@@ -91,27 +91,18 @@ testModal1 = component @{show} (Default header) onKey
     onKey Escape      _              = exit
     onKey _           _              = ignore
 
+testForm : Component (HVect [String, Nat, Integer, Double])
+testForm = ariaForm [
+  F     "menu"    testMenu,
+  F     "Nat"     $ numeric (the Nat 5),
+  F     "Integer" $ numeric (the Integer 5),
+  field "Double"  $ Just 5.0
+]
+
 partial export
 gallery : IO ()
 gallery = do
-  let result : Maybe String = !(runComponent testModal1)
+  let result : Maybe (HVect [String, Nat, Integer, Double]) = !(runComponent testForm)
   case result of
     Nothing => putStrLn "User Canceled"
     Just choice => putStrLn $ "User selected: \{show choice}"
-
-{-
-||| Demonstrate all the widgets, as they are implemented.
-|||
-||| Useful for smoke-testing changes to the library.
-partial export
-gallery : IO ()
-gallery = do
-  v <- runView (const pure) [] $ form [
-    field "menu"    testMenu,
-    field "Nat"     $ numeric (the Nat 5)        1 (),
-    field "Integer" $ numeric (the Integer 5)    1 (),
-    field "Double"  $ numeric (the Double 5.0) 0.1 (),
-    field "nested"  testForm
-  ]
-  putStrLn ""
-xo

@@ -35,14 +35,19 @@ data Editor valueT
 ||| XXX: this interface may be obsolete with the new component
 ||| arch.
 public export
-interface
-     View valueT
-  => Editable valueT
+interface View valueT => Editable valueT
 where
   constructor MkEditable
   fromValue  : valueT -> Component valueT
-  toValue    : Component valueT -> Maybe valueT
   blank      : Component valueT
+
+||| Construct a component for an editable type.
+|||
+||| The value may or may not be known.
+export
+editable : Editable valueT => Maybe valueT -> Component valueT
+editable Nothing  = blank
+editable (Just v) = fromValue v
 
 ||| Get the current value out of the editor.
 |||
@@ -55,7 +60,7 @@ export
   => Editor valueT
   -> Maybe valueT
 (.value) (Empty        _) = Nothing
-(.value) (Editing  x y _) = toValue x <+> y
+(.value) (Editing  x y _) = x.value <+> y
 (.value) (Accepted x y _) = Just x
 
 
@@ -187,4 +192,8 @@ editor
   => Maybe valueT
   -> String
   -> Component valueT
-editor value placeholder  = component (new value placeholder) handle
+editor value placeholder = component {
+  state = (new value placeholder),
+  handler = handle,
+  get = (.value)
+}
