@@ -9,6 +9,7 @@ import public TUI.Component.Editor
 import public TUI.Component.Form
 import public TUI.Component.Menu
 import public TUI.Component.Numeric
+import public TUI.Component.PushButton
 import public TUI.Component.Stack
 import public TUI.Component.Table
 import public TUI.Component.TextInput
@@ -91,18 +92,19 @@ testModal1 = component @{show} (Default header) onKey unavailable
     onKey Escape      _              = exit
     onKey _           _              = ignore
 
-testForm : Component (HVect [String, Nat, Integer, Double])
+testForm : Component (HVect [String, Nat, Integer, Double, String])
 testForm = ariaForm [
   F     "menu"    testMenu,
   F     "Nat"     $ numeric (the Nat 5),
   F     "Integer" $ numeric (the Integer 5),
-  field "Double"  $ Just 5.0
+  field "Double"  $ Just 5.0,
+  F     "String"  $ pushButton "TestModal1" testModal1
 ]
 
 partial export
 gallery : IO ()
 gallery = do
-  let result : Maybe (HVect [String, Nat, Integer, Double]) = !(runComponent testForm)
+  let result : Maybe (HVect [String, Nat, Integer, Double, String]) = !(runComponent testForm)
   case result of
     Nothing => putStrLn "User Canceled"
     Just choice => putStrLn $ "User selected: \{show choice}"
