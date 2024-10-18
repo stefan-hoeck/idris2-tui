@@ -14,7 +14,7 @@ import System.File
 import TUI.Event
 import TUI.Painting
 import TUI.Component
-import TUI.Component.Stack
+import TUI.Component.Modal
 
 
 %default total
@@ -74,8 +74,8 @@ namespace InputShim
   ||| continue, or `Right` to end computation with the final value.
   export covering
   runRaw
-    :  (sources : List (EventSource stateT valueT))
-    -> (render  : stateT  -> Context Builtin.Unit)
+    :  (sources : List (Event stateT valueT))
+    -> (render  : stateT  -> Context ())
     -> (init    : stateT)
     -> IO (Maybe valueT)
   runRaw sources render init = do
@@ -127,9 +127,9 @@ namespace InputShim
   ||| application state in response to the given key press.
   export covering
   runTUI
-    :  (onKey   : (Key -> stateT -> Result stateT valueT))
-    -> (sources : List (EventSource stateT valueT))
-    -> (render  : stateT -> Context Builtin.Unit)
+    :  (onKey   : Event.Handler stateT valueT Key)
+    -> (sources : List (Event stateT valueT))
+    -> (render  : stateT -> Context ())
     -> (init    : stateT)
     -> IO (Maybe valueT)
   runTUI onKey sources render init =
@@ -147,8 +147,8 @@ namespace MVC
   export covering
   runView
     :  View stateT
-    => (onKey : (Key -> stateT -> Result stateT valueT))
-    -> (sources : List (EventSource stateT valueT))
+    => (onKey : Event.Handler stateT valueT Key)
+    -> (sources : List (Event stateT valueT))
     -> stateT
     -> IO (Maybe valueT)
   runView onKey sources init =
@@ -164,8 +164,8 @@ namespace MVC
   export covering
   runMVC
     :  View stateT
-    => (onKey : Event.Handler stateT valueT)
-    -> (sources : List (EventSource stateT valueT))
+    => (onKey : Event.Handler stateT valueT Key)
+    -> (sources : List (Event stateT valueT))
     -> stateT
     -> IO (Maybe valueT)
   runMVC onKey sources init = runView onKey [] init

@@ -52,6 +52,11 @@ namespace Result
   run : IO stateT -> Result stateT _
   run next = pure $ Left !next
 
+||| A function to update application state in response to an event.
+public export
+0 Handler : Type -> Type -> Type -> Type
+Handler stateT valueT eventT = eventT -> stateT -> Result stateT valueT
+
 ||| A string event tag, and the associated event handler.
 |||
 ||| XXX: The original intent of this type was to collect input from a
@@ -63,12 +68,12 @@ namespace Result
 ||| decoded. The resulting event is passed to the handler, to yield
 ||| the output result.
 public export
-record EventSource stateT valueT where
+record Event stateT valueT where
   constructor On
   tag         : String
   0 Event     : Type
   {auto impl  : FromJSON Event}
-  handler     : Event -> stateT -> Result stateT valueT
+  handler     : Handler stateT valueT Event
 
 ||| Decode the top-level record in the given JSON.
 |||
@@ -97,7 +102,7 @@ match _ _ = Left "Wrong shape"
 export
 decodeNext
   : String
-  -> List (EventSource stateT valueT)
+  -> List (Event stateT valueT)
   -> Either String (stateT -> Result stateT valueT)
 decodeNext e sources = case parseJSON Virtual e of
     Left  err => Left "Parse Error: \{show err}"
@@ -105,7 +110,7 @@ decodeNext e sources = case parseJSON Virtual e of
 where
   loop
     : JSON
-    -> List (EventSource stateT valueT)
+    -> List (Event stateT valueT)
     -> Either String (stateT -> Result stateT valueT)
   loop parsed []        = Left "Unhandled event: \{e}"
   loop parsed (x :: xs) = case match @{x.impl} x.tag parsed of
@@ -125,16 +130,6 @@ data Key
   | Tab
   | Escape
 %runElab derive "Key" [Ord, Eq, Show, FromJSON]
-
-public export
-0 EventHandler : Type -> Type -> Type -> Type
-EventHandler stateT valueT eventT = eventT -> stateT -> Result stateT valueT
-
-||| XXX: this is an interim type, which can be deleted once
-||| we've finished generalizing event handling.
-public export
-0 Handler : Type -> Type -> Type
-Handler stateT valueT = EventHandler stateT valueT Key
 
 ||| The state machine for escape sequence decoding.
 export
@@ -224,14 +219,14 @@ decodeANSI onKey c self = inner (decode c self) where
 export
 onAnsiKey
   : (Key -> stateT -> Result stateT valueT)
-  -> EventSource (EscState stateT) valueT
+  -> Event (EscState stateT) valueT
 onAnsiKey handler = On "Stdin" Char $ decodeANSI handler
 
 ||| Handles wrapping / unwrapping EscState from non-keyboard handlers.
 export
 liftEsc
-  :  EventSource stateT valueT
-  -> EventSource (EscState stateT) valueT
+  :  Event stateT valueT
+  -> Event (EscState stateT) valueT
 liftEsc = { handler $= wrapHandler }
   where
     wrapHandler

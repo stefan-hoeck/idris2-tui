@@ -153,13 +153,12 @@ where
       Cancel => Focused
       _      => Normal
 
--- Note: it turns out `Vect (S k)` is key here. If we naively write
--- `Vect k`, Idris fails to resolve the `View` implementation in
--- HList.
-
-||| handle form event
-handleForm : {k : Nat} -> {tys : Vect k Type} -> Component.Handler (Form tys) (HVect tys)
-handleForm key self = case (key, self.focus) of
+||| This handler aims to follow typical ARIA keybindings.
+|||
+||| We can't completely support this until the the library implements
+||| support for modifier keys (e.g. Shift + TAB).
+ariaKeys : {k : Nat} -> {tys : Vect k Type} -> Component.Handler (Form tys) (HVect tys)
+ariaKeys key self = case (key, self.focus) of
   (Tab, _)        => update $ {fields $= prev} self
   (_, Edit)       => handleEdit
   (Enter, Submit) => case ?getValues of
