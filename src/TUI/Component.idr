@@ -7,6 +7,7 @@ module TUI.Component
 
 import public TUI.View
 import public TUI.Event
+import public TUI.Key
 
 %default total
 
