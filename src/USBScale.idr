@@ -20,7 +20,7 @@ import System
 import System.File
 import TUI
 import TUI.Component
-import TUI.Component.Stack
+import TUI.Component.Modal
 import Util
 
 

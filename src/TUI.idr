@@ -10,7 +10,7 @@ import public TUI.Component.Form
 import public TUI.Component.Menu
 import public TUI.Component.Numeric
 import public TUI.Component.PushButton
-import public TUI.Component.Stack
+import public TUI.Component.Modal
 import public TUI.Component.Table
 import public TUI.Component.TextInput
 import public TUI.Component.VList
@@ -40,7 +40,6 @@ testCounter = component @{show} 0 onKey unavailable
     onKey _     _   = ignore
 
 ||| A simple menu
-export
 testMenu : Component String
 testMenu = spinner ["foo", "bar", "baz"]
 
@@ -53,7 +52,6 @@ Show TestModal where
   show (Selected label c) = "\{label}\n\{c}"
 
 ||| Construct a TestModal component
-export
 testModal2 : Component String
 testModal2 = component @{show} (Default header) onKey unavailable
   where
