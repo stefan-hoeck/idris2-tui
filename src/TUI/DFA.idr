@@ -12,19 +12,13 @@
 ||| In contrast with traditional lexing and parsing, the emphasis is
 ||| on interactive use. There's no need to track source locations, but
 ||| there is a need to provide user feedback.
-
-
 module TUI.DFA
 
-import TUI.Event
-import Data.Maybe
-import Data.SortedMap
-import Derive.Prelude
-import TUI.View
+
+import Data.SnocList
 
 
 %default total
-%language ElabReflection
 
 
 ||| The output of a DFAs transition function.
@@ -198,6 +192,12 @@ retry wrapped = automaton wrapped handle
       Advance x y => Advance x y
       Accept x    => Accept x
       Reject err  => Advance (reset self) Nothing
+
+||| A DFA which simply returns its input unaltered.
+export
+identity : Automaton i i
+identity = liftF (Just . id)
+
 
 ||| Modify the behavior of Automata with boolean predicates.
 namespace Predicated

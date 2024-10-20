@@ -15,7 +15,9 @@ module TUI.Event
 
 
 import public JSON
+import Data.IORef
 import JSON.Derive
+import TUI.DFA
 
 
 %default total
@@ -57,23 +59,52 @@ public export
 0 Handler : Type -> Type -> Type -> Type
 Handler stateT valueT eventT = eventT -> stateT -> Result stateT valueT
 
-||| A string event tag, and the associated event handler.
+||| Decodes the given event type from Stdin.
 |||
 ||| XXX: The original intent of this type was to collect input from a
 ||| dedicated thread, injecting it into the main event queue. But
 ||| right now, all events are decoded as JSON records received on
 ||| stdin.
 |||
-||| The tag identifies the event type, whose contents are then
-||| decoded. The resulting event is passed to the handler, to yield
-||| the output result.
-public export
+||| The tag identifies the event type, whose contents are then decoded
+||| from JSON. The resulting Idris value is then passed to a decoder
+||| state machine, and then finally, to the asociated event handler.
+export
 record Event stateT valueT where
   constructor On
+  0 RawEventT : Type
+  0 EventT    : Type
   tag         : String
-  0 Event     : Type
-  {auto impl  : FromJSON Event}
-  handler     : Handler stateT valueT Event
+  {auto impl  : FromJSON RawEventT}
+  decoder     : IORef $ Automaton RawEventT EventT
+  handler     : Handler stateT valueT EventT
+
+||| Construct an EventSource for an event that must be further decoded.
+export
+decoded
+  :  {0 rawEventT, eventT : Type}
+  -> FromJSON rawEventT
+  => String
+  -> (decoder : Automaton rawEventT eventT)
+  -> Handler stateT valueT eventT
+  -> IO (Event stateT valueT)
+decoded tag decoder handler = pure $ On {
+  RawEventT = rawEventT,
+  EventT = eventT,
+  tag = tag,
+  decoder = !(newIORef decoder),
+  handler = handler
+}
+
+||| Construct an event source for an event that can be used directly.
+export
+raw
+  :  {0 eventT : Type}
+  -> FromJSON eventT
+  => String
+  -> Handler stateT valueT eventT
+  -> IO (Event stateT valueT)
+raw tag handler = decoded tag identity handler
 
 ||| Decode the top-level record in the given JSON.
 |||
@@ -97,22 +128,31 @@ match _ _ = Left "Wrong shape"
 
 ||| Try each handler in succession until one decodes an event.
 |||
-||| Returns the original handler, with the event partially applied
-||| (which avoids having to mention it in the return type).
+||| The internal decoder state is updated, if need be, and the
+||| resulting handler is returned with the event partially applied, so
+||| that it need not be mentioned in the return type.
 export
 decodeNext
-  : String
+  :  String
   -> List (Event stateT valueT)
-  -> Either String (stateT -> Result stateT valueT)
+  -> IO (Either String (stateT -> Result stateT valueT))
 decodeNext e sources = case parseJSON Virtual e of
-    Left  err => Left "Parse Error: \{show err}"
+    Left  err => pure $ Left "Parse Error: \{show err}"
     Right parsed => loop parsed sources
 where
   loop
     : JSON
     -> List (Event stateT valueT)
-    -> Either String (stateT -> Result stateT valueT)
-  loop parsed []        = Left "Unhandled event: \{e}"
+    -> IO (Either String (stateT -> Result stateT valueT))
+  loop parsed []        = pure $ Left "Unhandled event: \{e}"
   loop parsed (x :: xs) = case match @{x.impl} x.tag parsed of
       Left  err => loop parsed xs
-      Right evt => Right $ x.handler evt
+      Right evt => case next evt !(readIORef x.decoder) of
+        Discard      => pure $ Right $ \_ => ignore
+        Advance y z  => do
+          writeIORef x.decoder y
+          case z of
+            Nothing => pure $ Right $ \_ => ignore
+            Just e  => pure $ Right $ x.handler e
+        Accept y => pure $ Left $ "Toplevel event decoder in final state!"
+        Reject err => pure $ Left "Decode error: \{err}"

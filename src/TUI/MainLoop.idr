@@ -109,7 +109,7 @@ namespace InputShim
       endSyncUpdate
       fflush stdout
       next <- getLine
-      case decodeNext next sources of
+      case !(decodeNext next sources) of
         Right handler => case !(handler state) of
           Left  next => loop next
           Right res  => pure res
@@ -134,9 +134,9 @@ namespace InputShim
     -> IO (Maybe valueT)
   runTUI onKey sources render init =
     runRaw
-      ((onAnsiKey onKey) :: (liftEsc <$> sources))
-      (render . unwrap)
-      (wrap init)
+      (!(onAnsiKey onKey) :: sources)
+      render
+      init
 
 
 namespace MVC
@@ -168,7 +168,7 @@ namespace MVC
     -> (sources : List (Event stateT valueT))
     -> stateT
     -> IO (Maybe valueT)
-  runMVC onKey sources init = runView onKey [] init
+  runMVC onKey sources init = runView onKey sources init
 
   ||| Like runView, but for `Component` views, which know how to
   ||| handle events on their own.
