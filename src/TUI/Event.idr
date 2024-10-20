@@ -14,8 +14,9 @@
 module TUI.Event
 
 
-import public JSON
+import Data.List.Quantifiers.Extra
 import Data.IORef
+import public JSON
 import JSON.Derive
 import TUI.DFA
 
@@ -68,16 +69,14 @@ Handler stateT valueT eventT = eventT -> stateT -> Result stateT valueT
 |||
 ||| The tag identifies the event type, whose contents are then decoded
 ||| from JSON. The resulting Idris value is then passed to a decoder
-||| state machine, and then finally, to the asociated event handler.
+||| state machine.
 export
-record Event stateT valueT where
+record Event eventT where
   constructor On
   0 RawEventT : Type
-  0 EventT    : Type
   tag         : String
   {auto impl  : FromJSON RawEventT}
-  decoder     : IORef $ Automaton RawEventT EventT
-  handler     : Handler stateT valueT EventT
+  decoder     : IORef $ Automaton RawEventT eventT
 
 ||| Construct an EventSource for an event that must be further decoded.
 export
@@ -86,14 +85,11 @@ decoded
   -> FromJSON rawEventT
   => String
   -> (decoder : Automaton rawEventT eventT)
-  -> Handler stateT valueT eventT
-  -> IO (Event stateT valueT)
-decoded tag decoder handler = pure $ On {
+  -> IO (Event eventT)
+decoded tag decoder = pure $ On {
   RawEventT = rawEventT,
-  EventT = eventT,
-  tag = tag,
-  decoder = !(newIORef decoder),
-  handler = handler
+  tag       = tag,
+  decoder   = !(newIORef decoder)
 }
 
 ||| Construct an event source for an event that can be used directly.
@@ -102,18 +98,14 @@ raw
   :  {0 eventT : Type}
   -> FromJSON eventT
   => String
-  -> Handler stateT valueT eventT
-  -> IO (Event stateT valueT)
-raw tag handler = decoded tag identity handler
+  -> IO (Event eventT)
+raw tag = decoded tag identity
 
 ||| Decode the top-level record in the given JSON.
 |||
-||| This is somewhat manual, since there's no outer Sum type to
-||| decode into. We directly decode the first element of `contents`,
-||| which is where our event type actually lives.
-|||
-||| XXX: Probably the JSON package has this functionality, but I
-||| didn't want to go down that rabbit hole, so I wrote it manually.
+||| XXX: Probably the JSON package can work with HSum more directly,
+||| but I didn't want to go down that rabbit hole, so I wrote it
+||| manually.
 match : FromJSON a => String -> JSON -> Either String a
 match expected (JObject [
   ("tag", JString got),
@@ -128,31 +120,42 @@ match _ _ = Left "Wrong shape"
 
 ||| Try each handler in succession until one decodes an event.
 |||
-||| The internal decoder state is updated, if need be, and the
-||| resulting handler is returned with the event partially applied, so
-||| that it need not be mentioned in the return type.
+||| Returns the event as an HSum over all the event sources.
 export
 decodeNext
   :  String
-  -> List (Event stateT valueT)
-  -> IO (Either String (stateT -> Result stateT valueT))
+  -> All Event tys
+  -> IO $ Either String (HSum tys)
 decodeNext e sources = case parseJSON Virtual e of
-    Left  err => pure $ Left "Parse Error: \{show err}"
+    Left  err    => pure $ Left "Parse Error: \{show err}"
     Right parsed => loop parsed sources
 where
   loop
     : JSON
-    -> List (Event stateT valueT)
-    -> IO (Either String (stateT -> Result stateT valueT))
+    -> All Event a
+    -> IO (Either String (HSum a))
   loop parsed []        = pure $ Left "Unhandled event: \{e}"
   loop parsed (x :: xs) = case match @{x.impl} x.tag parsed of
-      Left  err => loop parsed xs
+      Left  err => pure $ There <$> !(loop parsed xs)
       Right evt => case next evt !(readIORef x.decoder) of
-        Discard      => pure $ Right $ \_ => ignore
-        Advance y z  => do
-          writeIORef x.decoder y
-          case z of
-            Nothing => pure $ Right $ \_ => ignore
-            Just e  => pure $ Right $ x.handler e
+        Discard  => pure $ Left "Event discarded."
+        Advance state output => do
+          writeIORef x.decoder state
+          case output of
+            Nothing     => pure $ Left "No event decoded."
+            Just event  => pure $ Right $ inject event
         Accept y => pure $ Left $ "Toplevel event decoder in final state!"
         Reject err => pure $ Left "Decode error: \{err}"
+
+||| Try to handle an event using one of the given handlers.
+|||
+||| The event must be covered by one of the handlers in the list.
+export
+handleEvent
+  :  {0 stateT, valueT : Type}
+  -> HSum tys
+  -> stateT
+  -> All (Handler stateT valueT) tys
+  -> Result stateT valueT
+handleEvent (Here  x)  state (h :: hs) = h x state
+handleEvent (There xs) state (h :: hs) = handleEvent xs state hs

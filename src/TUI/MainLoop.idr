@@ -8,6 +8,8 @@
 
 module TUI.MainLoop
 
+import Data.List.Quantifiers
+import Data.List.Quantifiers.Extra
 import Control.ANSI
 import System
 import System.File
@@ -64,6 +66,7 @@ namespace InputShim
   ||| XXX: Run with python shim in this directory.
   |||
   ||| @ sources  A list of event sources.
+  ||| @ handlers A list of handlers covering each event source.
   ||| @ render   A function to render the current state to the screen.
   ||| @ init     The initial application state.
   |||
@@ -74,11 +77,12 @@ namespace InputShim
   ||| continue, or `Right` to end computation with the final value.
   export covering
   runRaw
-    :  (sources : List (Event stateT valueT))
-    -> (render  : stateT  -> Context ())
-    -> (init    : stateT)
+    :  (sources  : All Event tys)
+    -> (handlers : All (Handler stateT valueT) tys)
+    -> (render   : stateT  -> Context ())
+    -> (init     : stateT)
     -> IO (Maybe valueT)
-  runRaw sources render init = do
+  runRaw sources handlers render init = do
     -- input-shim.py already put the terminal in raw mode
     putStrLn ""
     altScreen True
@@ -110,7 +114,7 @@ namespace InputShim
       fflush stdout
       next <- getLine
       case !(decodeNext next sources) of
-        Right handler => case !(handler state) of
+        Right event => case !(handleEvent event state handlers) of
           Left  next => loop next
           Right res  => pure res
         Left err     => do
@@ -127,14 +131,16 @@ namespace InputShim
   ||| application state in response to the given key press.
   export covering
   runTUI
-    :  (onKey   : Event.Handler stateT valueT Key)
-    -> (sources : List (Event stateT valueT))
-    -> (render  : stateT -> Context ())
-    -> (init    : stateT)
+    :  (onKey    : Event.Handler stateT valueT Key)
+    -> (sources  : All Event tys)
+    -> (handlers : All (Handler stateT valueT) tys)
+    -> (render   : stateT -> Context ())
+    -> (init     : stateT)
     -> IO (Maybe valueT)
-  runTUI onKey sources render init =
+  runTUI onKey sources handlers render init =
     runRaw
-      (!(onAnsiKey onKey) :: sources)
+      (!onAnsiKey :: sources)
+      (onKey :: handlers)
       render
       init
 
@@ -148,13 +154,15 @@ namespace MVC
   runView
     :  View stateT
     => (onKey : Event.Handler stateT valueT Key)
-    -> (sources : List (Event stateT valueT))
+    -> (sources : All Event tys)
+    -> (handlers : All (Handler stateT valueT) tys)
     -> stateT
     -> IO (Maybe valueT)
-  runView onKey sources init =
+  runView onKey sources handlers init =
     runTUI
       onKey
       sources
+      handlers
       (View.paint Focused !(screen))
       init
 
@@ -165,15 +173,16 @@ namespace MVC
   runMVC
     :  View stateT
     => (onKey : Event.Handler stateT valueT Key)
-    -> (sources : List (Event stateT valueT))
+    -> (sources : All Event tys)
+    -> (handlers : All (Handler stateT valueT) tys)
     -> stateT
     -> IO (Maybe valueT)
   runMVC onKey sources init = runView onKey sources init
 
   ||| Like runView, but for `Component` views, which know how to
   ||| handle events on their own.
-  |||
-  ||| XXX: components can only handle Key events, I need to fix that.
   export covering
-  runComponent : Component valueT -> IO (Maybe valueT)
-  runComponent self = runMVC handle [] (root self)
+  runComponent
+    : Component valueT
+    -> IO (Maybe valueT)
+  runComponent self = runMVC handle [] [] (root self)
