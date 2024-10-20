@@ -1,7 +1,33 @@
-||| Minimalist terminal UI framework.
-|||
-||| The definitions in this module comprise an embedded DSL for
-||| building re-usable interactive components.
+-- BSD 3-Clause License
+--
+-- Copyright (c) 2023, Brandon Lewis
+--
+-- Redistribution and use in source and binary forms, with or without
+-- modification, are permitted provided that the following conditions are met:
+--
+-- 1. Redistributions of source code must retain the above copyright notice, this
+--    list of conditions and the following disclaimer.
+--
+-- 2. Redistributions in binary form must reproduce the above copyright notice,
+--    this list of conditions and the following disclaimer in the documentation
+--    and/or other materials provided with the distribution.
+--
+-- 3. Neither the name of the copyright holder nor the names of its
+--    contributors may be used to endorse or promote products derived from
+--    this software without specific prior written permission.
+--
+-- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+-- AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+-- IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+-- DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+-- FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+-- DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+-- SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+-- CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+-- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+-- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+||| Support for self-contained UI elements.
 module TUI.Component
 
 
@@ -29,7 +55,7 @@ public export data Response : Type -> Type -> Type
 |||
 ||| Note: this type alias is forward-declared, because mutual blocks
 ||| do not workw ith records, owing to a bug in Idris.
-public export 0 Handler : Type -> Type -> Type
+public export 0 Handler : Type -> Type -> Type -> Type
 
 ||| A reusable user-interface element.
 |||
@@ -39,7 +65,7 @@ record Component valueT where
   constructor MkComponent
   0 State : Type
   state   : State
-  handler : Component.Handler State valueT
+  handler : Component.Handler State valueT Key
   get     : State -> Maybe valueT
   vimpl   : View State
 
@@ -52,7 +78,7 @@ data Response stateT valueT
   | Exit
   | Push (Component a) (Maybe a -> stateT)
 
-Handler stateT valueT = Key -> stateT -> IO $ Response stateT valueT
+Handler stateT valueT eventT = eventT -> stateT -> IO $ Response stateT valueT
 
 ||| Get the value from the component, if it is available.
 export
@@ -130,7 +156,7 @@ namespace ComponentDSL
 ||| it into the component-level handler which is needed by client
 ||| code.
 export
-handle : Component.Handler (Component valueT) valueT
+handle : Component.Handler (Component valueT) valueT Key
 handle key self = case !(self.handler key self.state) of
   Continue state => update $ {state := !state} self
   Yield result   => yield result
@@ -145,7 +171,7 @@ export
 component
   : View stateT
   => (state   : stateT)
-  -> (handler : Component.Handler stateT valueT)
+  -> (handler : Component.Handler stateT valueT Key)
   -> (get     : stateT -> Maybe valueT)
   -> Component valueT
 component init handler get = MkComponent {

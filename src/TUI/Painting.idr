@@ -1,5 +1,32 @@
-||| Minimalist terminal UI framework.
-|||
+-- BSD 3-Clause License
+--
+-- Copyright (c) 2023, Brandon Lewis
+--
+-- Redistribution and use in source and binary forms, with or without
+-- modification, are permitted provided that the following conditions are met:
+--
+-- 1. Redistributions of source code must retain the above copyright notice, this
+--    list of conditions and the following disclaimer.
+--
+-- 2. Redistributions in binary form must reproduce the above copyright notice,
+--    this list of conditions and the following disclaimer in the documentation
+--    and/or other materials provided with the distribution.
+--
+-- 3. Neither the name of the copyright holder nor the names of its
+--    contributors may be used to endorse or promote products derived from
+--    this software without specific prior written permission.
+--
+-- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+-- AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+-- IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+-- DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+-- FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+-- DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+-- SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+-- CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+-- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+-- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 ||| Immediate-mode TUI graphics.
 |||
 ||| These routines are slightly higher-level than that provided by
@@ -10,12 +37,7 @@
 ||| state (position, color, font, style, etc). In practice everything
 ||| is written directly to stdout. Baby steps.
 |||
-||| So far, we have a reasonably-rich set of features, including sixel
-||| images, without any need to track draw state. But this is probably
-||| about to change.
-|||
-||| In particular, I would like to support client code which looks
-||| like:
+||| I would like to support client code which looks like:
 |||
 ||| ```idris
 ||| withSGR [Reverse] $ do
@@ -26,18 +48,11 @@
 |||      ...
 ||| ```
 |||
-||| The rightward drift is a small price to pay for clear scoping of
-||| draw operations.
+||| In certain situations, the rightward drift is a small price to pay
+||| for clear scoping of draw operations.
 |||
-||| For that to work, we need to cache the draw state somewhere,
-||| because as far as the terminal is concered, attributes are
-||| booleans. But we want to make them more like HTML tags, where they
-||| can nest, and everything is cleaned up properly even in the
-||| presence of failure.
-|||
-||| Tragically, there is no support for *clipping*, and so there's no
-||| support for scrolling, and I'm still not quite sure how to
-||| implement this. It seems important though.
+||| There is no support for *clipping*, and so there's no support for
+||| scrolling. It's still early days.
 module TUI.Painting
 
 
@@ -52,16 +67,14 @@ import public TUI.Geometry
 namespace Context
   ||| A context for drawing to the terminal.
   |||
-  ||| The eventual goal is to support tracking the sate of drawing
-  ||| attributes, so that we can tie them propely to lexical scope.
-  |||
-  ||| For now this is a simple wrapper around IO.
+  ||| For now this is a simple wrapper around IO, which affords the
+  ||| freedom to do something different later if need be.
   export
   record Context a where
     constructor C
     action : IO a
 
-  ||| For now, Context is really just a wrapper around IO.
+  ||| Context is just a wrapper around IO.
   |||
   ||| This escape hatch is to cover the cases we don't handle yet, in
   ||| a way that's easy to grep for.

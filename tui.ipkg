@@ -1,6 +1,6 @@
-package ampii
+package tui
 version = 0.1.0
-authors = "brandon"
+authors = "emdash"
 -- maintainers =
 -- license =
 -- brief =
@@ -20,28 +20,17 @@ depends = contrib
 	, sop
 	, refined
 	, algebra
-	, date
 	, quantifiers-extra
 
 -- modules to install
-modules = Container
-        , Food
-	, Main
-        , Measures
-	, Plan
-	, Recipes
-	, Shopping
-	, Util
-	, Inventory
-	, USBScale
-	, DirDB
+modules = TUI
 
 -- main file (i.e. file to load at REPL)
-main = Main
+-- main =
 
 -- name of executable
-executable = "ampii"
-
+-- executable =
+-- opts =
 sourcedir = "src"
 -- builddir =
 -- outputdir =

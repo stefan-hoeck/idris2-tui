@@ -1,5 +1,32 @@
-||| Minimalist terminal UI framework.
-|||
+-- BSD 3-Clause License
+--
+-- Copyright (c) 2023, Brandon Lewis
+--
+-- Redistribution and use in source and binary forms, with or without
+-- modification, are permitted provided that the following conditions are met:
+--
+-- 1. Redistributions of source code must retain the above copyright notice, this
+--    list of conditions and the following disclaimer.
+--
+-- 2. Redistributions in binary form must reproduce the above copyright notice,
+--    this list of conditions and the following disclaimer in the documentation
+--    and/or other materials provided with the distribution.
+--
+-- 3. Neither the name of the copyright holder nor the names of its
+--    contributors may be used to endorse or promote products derived from
+--    this software without specific prior written permission.
+--
+-- THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+-- AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+-- IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+-- DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+-- FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+-- DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+-- SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+-- CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+-- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+-- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
 ||| Entry point for running TUI applications.
 |||
 ||| The code in this file takes care of initializing and restoring
@@ -20,6 +47,9 @@ import TUI.Component.Modal
 
 
 %default total
+
+
+{- These routines should probably be contributed to the ANSI library -}
 
 
 ||| Clear the contents of the screen.
@@ -58,27 +88,23 @@ endSyncUpdate = putStrLn "\ESC[?2026l"
 ||| It reads line-separated JSON records from stdin. So a lot of the
 ||| tricky stuff is done in python.
 |||
-||| This is temporary, until the right functionality is available in
-||| idris.
+||| For now this is the only way to use this library, but I also see
+||| this as a useful mechanism for testing and debugging.
 namespace InputShim
   ||| Initialize the terminal, then enter the main loop.
   |||
-  ||| XXX: Run with python shim in this directory.
+  ||| XXX: Run with python input shim in this directory.
   |||
   ||| @ sources  A list of event sources.
   ||| @ handlers A list of handlers covering each event source.
   ||| @ render   A function to render the current state to the screen.
   ||| @ init     The initial application state.
   |||
-  ||| This is the lowest-level entry point. Use this if you don't want
-  ||| escape sequence decoding, or any higher-level abstractions.
-  |||
-  ||| The `update` function should return `Left` if processing should
-  ||| continue, or `Right` to end computation with the final value.
+  ||| This is the lowest-level entry point.
   export covering
   runRaw
     :  (sources  : All Event tys)
-    -> (handlers : All (Handler stateT valueT) tys)
+    -> (handlers : All (Event.Handler stateT valueT) tys)
     -> (render   : stateT  -> Context ())
     -> (init     : stateT)
     -> IO (Maybe valueT)
@@ -121,68 +147,30 @@ namespace InputShim
           ignore $ fPutStrLn stderr $ show err
           loop state
 
-  ||| Like runRaw, but handles decoding ANSI escape sequences into
-  ||| high-level key events.
-  |||
-  ||| Use this entry point when you want escape sequence decoding, but
-  ||| do not want to use the `View` or `Component` abstractions.
-  |||
-  ||| The `onKey` handler you supply should update the global
-  ||| application state in response to the given key press.
-  export covering
-  runTUI
-    :  (onKey    : Event.Handler stateT valueT Key)
-    -> (sources  : All Event tys)
-    -> (handlers : All (Handler stateT valueT) tys)
-    -> (render   : stateT -> Context ())
-    -> (init     : stateT)
-    -> IO (Maybe valueT)
-  runTUI onKey sources handlers render init =
-    runRaw
-      (!onAnsiKey :: sources)
-      (onKey :: handlers)
-      render
-      init
-
 
 namespace MVC
-  ||| Like runTUI, but for `stateT` which implement `View`.
+  ||| Like runRaw, but for `stateT` which implement `View`.
   |||
-  ||| Accordingly, there is no need to supply an explicit `render`
-  ||| function.
+  ||| Accordingly, it drops the `render` parameter.
   export covering
   runView
     :  View stateT
-    => (onKey : Event.Handler stateT valueT Key)
-    -> (sources : All Event tys)
-    -> (handlers : All (Handler stateT valueT) tys)
+    => (sources : All Event tys)
+    -> (handlers : All (Event.Handler stateT valueT) tys)
     -> stateT
     -> IO (Maybe valueT)
-  runView onKey sources handlers init =
-    runTUI
-      onKey
+  runView sources handlers init =
+    runRaw
       sources
       handlers
       (View.paint Focused !(screen))
       init
 
-  ||| Like runView, but we expect a `Response` instead of a `Result`.
+  ||| Like runView, but for `Component`.
   |||
-  ||| This is an implementation detail for `runModal`.
-  export covering
-  runMVC
-    :  View stateT
-    => (onKey : Event.Handler stateT valueT Key)
-    -> (sources : All Event tys)
-    -> (handlers : All (Handler stateT valueT) tys)
-    -> stateT
-    -> IO (Maybe valueT)
-  runMVC onKey sources init = runView onKey sources init
-
-  ||| Like runView, but for `Component` views, which know how to
-  ||| handle events on their own.
+  ||| Right now this hard codes the set of event sources and handlers.
   export covering
   runComponent
-    : Component valueT
+    :  (self    : Component valueT)
     -> IO (Maybe valueT)
-  runComponent self = runMVC handle [] [] (root self)
+  runComponent self = runView [!onAnsiKey] [handle] (root self)
