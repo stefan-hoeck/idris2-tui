@@ -36,7 +36,7 @@ module TUI.Zipper.List
 import Data.List1
 import Data.Maybe
 import Data.SnocList
-import Util
+import TUI.Util
 
 
 %default total

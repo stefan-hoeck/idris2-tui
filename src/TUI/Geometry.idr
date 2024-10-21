@@ -33,8 +33,8 @@ module TUI.Geometry
 
 
 import Derive.Prelude
-import Util
 import System
+import TUI.Util
 
 
 %language ElabReflection

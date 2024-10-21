@@ -36,7 +36,7 @@ import Data.String
 import Data.SnocList
 import TUI.Component
 import TUI.Component.Editor
-import Util
+import TUI.Util
 
 
 %default total

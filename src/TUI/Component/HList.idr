@@ -37,7 +37,7 @@ import Data.SortedSet
 import TUI.Component
 import TUI.Layout
 import TUI.View
-import Util
+import TUI.Util
 
 
 %default total

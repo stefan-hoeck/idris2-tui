@@ -38,7 +38,7 @@ module TUI.Zipper.Huet
 
 
 import Data.SnocList
-import Util
+import TUI.Util
 import Derive.Prelude
 
 

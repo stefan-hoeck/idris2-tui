@@ -39,7 +39,7 @@ import TUI.Component.HList
 import TUI.Layout
 import TUI.View
 import TUI.Zipper.List
-import Util
+import TUI.Util
 
 
 %default total

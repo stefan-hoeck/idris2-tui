@@ -37,8 +37,8 @@ import Data.Nat
 import TUI.Component
 import TUI.Layout
 import TUI.Painting
+import TUI.Util
 import TUI.View
-import Util
 
 
 %default total

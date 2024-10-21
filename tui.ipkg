@@ -1,29 +1,49 @@
 package tui
 version = 0.1.0
 authors = "emdash"
--- maintainers =
--- license =
--- brief =
--- readme =
--- homepage =
--- sourceloc =
--- bugtracker =
+-- maintainers = "emdash"
+-- license = "BSD-3"
+-- brief = "Easy terminal UI for Idris2"
 
 -- the Idris2 version required (e.g. langversion >= 0.5.1)
 -- langversion
 
 -- packages to add to search path
 depends = contrib
-	, indexed
-	, json
-	, elab-util
-	, sop
-	, refined
-	, algebra
-	, quantifiers-extra
+        , indexed
+        , json
+        , elab-util
+        , sop
+        , refined
+        , algebra
+        , quantifiers-extra
 
 -- modules to install
 modules = TUI
+        , TUI
+        , TUI.Util
+        , TUI.Component
+        , TUI.Component.Editor
+        , TUI.Component.Form
+        , TUI.Component.HList
+        , TUI.Component.Menu
+        , TUI.Component.Modal
+        , TUI.Component.Numeric
+        --, TUI.Component.Pane
+        , TUI.Component.PushButton
+        , TUI.Component.TextInput
+        , TUI.Component.VList
+        , TUI.DFA
+        , TUI.Event
+        , TUI.Geometry
+        , TUI.Image
+        , TUI.Key
+        , TUI.Layout
+        , TUI.MainLoop
+        , TUI.Painting
+        , TUI.View
+	, TUI.Zipper.List
+
 
 -- main file (i.e. file to load at REPL)
 -- main =

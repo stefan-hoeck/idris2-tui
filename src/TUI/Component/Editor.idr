@@ -38,7 +38,7 @@ module TUI.Component.Editor
 import Data.Maybe
 import Data.String
 import TUI.Component
-import Util
+import TUI.Util
 import TUI.Zipper.List
 
 

@@ -34,7 +34,7 @@ module TUI.Component.TextInput
 import Data.String
 import TUI.Component
 import TUI.Component.Editor
-import Util
+import TUI.Util
 import TUI.Zipper.List
 
 
