@@ -1,0 +1,16 @@
+[custom.all.gallery]
+type = "local"
+path = "."
+ipkg = "gallery.ipkg"
+test = "test/test.ipkg"
+
+[custom.all.gallery-test]
+type = "local"
+path = "test"
+ipkg = "test.ipkg"
+
+[custom.all.tui]
+type = "local"
+path = "../../"
+ipkg = "tui.ipkg"
+
