@@ -2,7 +2,10 @@ module Main
 
 
 import TUI
-
+import TUI.MainLoop
+import TUI.MainLoop.Default
+import System
+import System.File
 
 %default total
 %language ElabReflection
@@ -84,7 +87,7 @@ testForm = ariaForm [
 partial export
 gallery : IO ()
 gallery = do
-  case !(runComponent testForm) of
+  case !(runComponent !getDefault testForm) of
     Nothing => putStrLn "User Canceled"
     Just choice => putStrLn $ "User selected: \{show choice}"
 

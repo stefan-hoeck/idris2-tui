@@ -27,61 +27,39 @@
 -- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 -- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-||| This module provides partial support for decoding ansi input
-||| escape sequences into high-level keys.
-|||
-||| There are libraries that do this, but not ones written in
-||| Idris. This seems like territory for which Idris is well-suited,
-||| and I don't feel like getting into Idris FFI right now.
-|||
-||| At present, only a few core sequences are decoded that should work
-||| anywhere. In the future, I will expand this to cover iTerm2-style
-||| extensions supported by contemporary terminals, but this will
-||| require support for feature detection.
-module TUI.Event
+||| Choose at runtime which mainloop to run based on environment variable.
+module TUI.MainLoop.Default
 
 
-import Data.IORef
-import public JSON
-import JSON.Derive
-import TUI.DFA
+import System
+import TUI.Event
+import TUI.Key
+import TUI.MainLoop
+import TUI.MainLoop.InputShim
+import TUI.MainLoop.Base
+import TUI.Painting
 
 
 %default total
-%language ElabReflection
 
 
-namespace Result
-  ||| A function to update state in response to an event.
-  public export
-  0 Result : Type -> Type -> Type
-  Result stateT valueT = IO (Either stateT (Maybe valueT))
+||| Chooses which mainloop to run based on env var.
+export
+0 Default : Type
+Default = Either (InputShim [Key]) Base
 
-  export
-  ignore : {auto self : stateT} -> Result stateT _
-  ignore {self} = pure $ Left self
+||| Construct a mainloop based the IDRIS_TUI_MAINLOOP envvar
+export covering
+getDefault : IO Default
+getDefault = do
+  case !(getEnv "IDRIS_TUI_MAINLOOP") of
+    Nothing           => pure $ Right base
+    Just "base"       => pure $ Right base
+    Just "input-shim" => pure $ Left !inputShim
+    Just wtf          => die
+      "Invalid MainLoop: \{show wtf}: give one of \"base\" or \"input\""
 
-  export
-  exitWith : Maybe valueT -> Result _ valueT
-  exitWith result = pure $ Right result
-
-  export
-  exit : Result _ _
-  exit = exitWith Nothing
-
-  export
-  yield : valueT -> Result _ valueT
-  yield v = exitWith $ Just v
-
-  export
-  update : stateT -> Result stateT _
-  update next = pure $ Left next
-
-  export
-  run : IO stateT -> Result stateT _
-  run next = pure $ Left !next
-
-||| A function to update application state in response to an event.
-public export
-0 Handler : Type -> Type -> Type -> Type
-Handler stateT valueT eventT = eventT -> stateT -> Result stateT valueT
+export covering
+MainLoop Default where
+  runRaw (Left b) = runRaw b
+  runRaw (Right is) = runRaw is
