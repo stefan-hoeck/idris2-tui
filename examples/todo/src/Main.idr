@@ -25,6 +25,9 @@ record Item where
 toggle : Item -> Item
 toggle = {completed $= not}
 
+setDesc : String -> Item -> Item
+setDesc d = {description := d}
+
 View Item where
   size self = size self.description
   paint state window self = paint state window summary
@@ -50,7 +53,7 @@ todoList path items = component (fromList header items) onKey (Just . toList) wh
   where
     onMerge : Item -> Maybe String -> VList Item
     onMerge _    Nothing  = self
-    onMerge item (Just v) = insert ({description := v} item) self
+    onMerge item (Just v) = update (setDesc v) self
 
   onKey : Component.Handler (VList Item) (List Item) Key
   onKey (Alpha '+') self = update $ insert (I "New Item" False) self
