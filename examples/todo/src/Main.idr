@@ -30,7 +30,10 @@ View Item where
 todoList : List Item -> Component (List Item)
 todoList items = component (fromList header items) onKey (Just . toList) where
   header : String
+  header = "Description"
+
   onKey : Component.Handler (VList Item) (List Item) Key
+  onKey key _ = exit
 
 covering
 fromFile : String -> IO (Maybe (List Item))
