@@ -38,10 +38,10 @@ View Item where
       summary = "\{status} \{self.description}"
 
 ||| A component for editing the todolist
-todoList : List Item -> Component (List Item)
-todoList items = component (fromList header items) onKey (Just . toList) where
+todoList : String -> List Item -> Component (List Item)
+todoList path items = component (fromList header items) onKey (Just . toList) where
   header : String
-  header = "Description"
+  header = path
 
   editSelected : VList Item -> IO $ Response (VList Item) (List Item)
   editSelected self = case self.selected of
@@ -79,7 +79,7 @@ covering
 run : String -> IO ()
 run path = do
   items <- fromFile path
-  case !(runComponent !getDefault (todoList (fromMaybe [] items))) of
+  case !(runComponent !getDefault (todoList path (fromMaybe [] items))) of
     Nothing => pure ()
     Just items => toFile path items
 
