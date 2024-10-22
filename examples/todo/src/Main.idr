@@ -22,39 +22,58 @@ record Item where
   completed   : Bool
 %runElab derive "Item" [Show, Eq, Ord, FromJSON, ToJSON]
 
+||| Toggle an item's completed state.
 toggle : Item -> Item
 toggle = {completed $= not}
 
+||| Set an item's description.
 setDesc : String -> Item -> Item
 setDesc d = {description := d}
 
+||| Render the status of a Boolean as a Checkbox.
+checkBox : Bool -> String
+checkBox True  = "[+]"
+checkBox False = "[ ]"
+
+||| Get a visual representation an Item as a string.
+(.summary) : Item -> String
+(.summary) self = "\{checkBox self.completed} \{self.description}"
+
+||| Implement `View` for Item, so it can be drawn to the screen.
+|||
+||| This is a requirement for Item to be used with `VList`.
 View Item where
-  size self = size self.description
-  paint state window self = paint state window summary
-    where
-      status : String
-      status = case self.completed of
-        True  => "[+]"
-        False => "[ ]"
+  size self = size self.summary
+  paint state window self = paint state window self.summary
 
-      summary : String
-      summary = "\{status} \{self.description}"
-
-||| A component for editing the todolist
+||| Create component for editing the todolist
+|||
+||| The path is used as the list header, so we know which file we're
+||| editing.
 todoList : String -> List Item -> Component (List Item)
-todoList path items = component (fromList header items) onKey (Just . toList) where
-  header : String
-  header = path
-
+todoList path items = vlist {
+  header = path,
+  items = items,
+  onKey = onKey
+} where
+  ||| Update the selected list item description via a modal TextInput.
   editSelected : VList Item -> IO $ Response (VList Item) (List Item)
   editSelected self = case self.selected of
     Nothing => ignore
     Just item => push (textInput item.description) (onMerge item)
   where
+    ||| Update the item description when the TextInput.
     onMerge : Item -> Maybe String -> VList Item
     onMerge _    Nothing  = self
     onMerge item (Just v) = update (setDesc v) self
 
+  ||| Determines what to do when the user presses a key while this
+  ||| component has focus.
+  |||
+  ||| The user can add a new component by pressing the + key. Space
+  ||| toggles completion status. Arrow keys are used for
+  ||| navigation. `q` will quit-and-save, while escape will quit
+  ||| without saving. Other keys are ignored.
   onKey : Component.Handler (VList Item) (List Item) Key
   onKey (Alpha '+') self = update $ insert (I "New Item" False) self
   onKey (Alpha 'q') self = yield  $ toList self
@@ -65,6 +84,8 @@ todoList path items = component (fromList header items) onKey (Just . toList) wh
   onKey Escape      _    = exit
   onKey key         _    = ignore
 
+||| Open a todo list file, and try to parse its contents into a list
+||| of items. This doesn't do much in the way of error handling.
 covering
 fromFile : String -> IO (Maybe (List Item))
 fromFile path = do
@@ -73,11 +94,15 @@ fromFile path = do
     Left  err      => pure Nothing
     Right contents => pure $ Just contents
 
+||| Save the given list of items to the given path as a JSON document.
 covering
 toFile : String -> List Item -> IO ()
 toFile path todolist = do
   ignore $ writeFile path $ encode todolist
 
+||| Open the given file, create the UI, and enter the application
+||| mainloop. If parsing the file fails, an empty todolist will be
+||| created.
 covering
 run : String -> IO ()
 run path = do
@@ -86,6 +111,7 @@ run path = do
     Nothing => pure ()
     Just items => toFile path items
 
+||| Program entry point. Parse arguments and enter the UI.
 covering
 main : IO ()
 main = do
