@@ -30,21 +30,7 @@
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 shopt -s checkwinsize; (:;:)
-
 export LINES="${LINES}"
 export COLUMNS="${COLUMNS}"
 
-function shim {
-    python input-shim.py 2>shim_log
-}
-
-case "$1" in
-    --debug)
-	shift
-	export IDRIS_TUI_MAINLOOP="input-shim"
-	shim | ./build/exec/gallery "$@" 2> debug_log
-	;;
-    *)
-	./build/exec/gallery
-	;;
-esac
+./build/exec/gallery

@@ -10,9 +10,3 @@ pack install-deps
 pack build
 ./run.sh
 ```
-
-To run this demo using InputShim,
-
-```
-./run.sh --debug
-```
