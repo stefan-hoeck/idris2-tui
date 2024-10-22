@@ -22,9 +22,9 @@ record Item where
   completed   : Bool
 %runElab derive "Item" [Show, Eq, Ord, FromJSON, ToJSON]
 
-View (VList Item) where
-  size = ?hole
-  paint = ?hole2
+View Item where
+  size self = size @{show} self.description
+  paint state window self = paint @{show} state window self.description
 
 todoList : List Item -> Component (List Item)
 todoList items = component (fromList header items) onKey (Just . toList) where
