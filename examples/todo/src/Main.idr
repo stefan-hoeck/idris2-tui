@@ -26,6 +26,7 @@ View Item where
   size self = size @{show} self.description
   paint state window self = paint @{show} state window self.description
 
+||| A component for editing the todolist
 todoList : List Item -> Component (List Item)
 todoList items = component (fromList header items) onKey (Just . toList) where
   header : String
@@ -47,8 +48,8 @@ toFile path todolist = do
 covering
 run : String -> IO ()
 run path = do
-  Just items <- fromFile path | Nothing => die "Error reading file"
-  case !(runComponent !getDefault ?component) of
+  items <- fromFile path
+  case !(runComponent !getDefault (todoList (fromMaybe [] items))) of
     Nothing => pure ()
     Just items => toFile path items
 
