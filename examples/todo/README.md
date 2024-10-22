@@ -18,7 +18,7 @@ To edit a file named todo.txt: `./run.sh todo.txt`
 | Key     | Function                           |
 |---------|------------------------------------|
 | `+`     | Insert a new todo list item        |
-| ` `     | Toggle completino of selected item |
+| `Space` | Toggle completion of selected item |
 | `q`     | Quit and save                      |
 | `Enter` | Edit item description              |
 | `Esc`   | Exit without saving                |
