@@ -49,35 +49,44 @@ import public TUI.Zipper.List
 %default total
 
 
+||| A dynamic vertical list component backed by a list zipper.
+|||
+||| Items must be of a homogenous type that implements `View`.
 export
 record VList itemT where
   constructor MkVList
   header    : String
   items     : Zipper itemT
 
+||| Construct an empty VList
 export
 empty : String -> VList itemT
 empty header = MkVList header empty
 
+||| Construct a VList from a list of items.
 export
 fromList : String -> List itemT -> VList itemT
 fromList header items = MkVList header (fromList items)
 
+||| Get the list of items from a VList
 export
 toList : VList itemT -> List itemT
 toList self = toList self.items
 
+||| Get the number of items in the VList.
 export
 length : VList _ -> Nat
 length self = length self.items
 
-export
+||| Lift a function operating on the underlying zipper to a function
+||| operating on the VList.
 lift
   :  (f : Zipper itemT -> Zipper itemT)
   -> (self : VList itemT)
   -> VList itemT
 lift f = {items $= f}
 
+||| Get the item referenced by the cursor, if it exists.
 export
 (.selected) : VList itemT -> Maybe itemT
 (.selected) self = cursor self.items
@@ -124,23 +133,9 @@ replace : a -> VList a -> VList a ; replace a = lift (replace a)
 public export
 seekTo : Nat -> VList a -> VList a ; seekTo n = lift (seekTo n)
 
-||| Advance rightward until `p x` gives `True`.
-|||
-||| If found, returns a zipper with the cursor at the given
-||| position. If we reach the end of the zipper, returns Nothing.
--- public export
--- seekRight : (a -> Bool) -> VList a -> Maybe (VList a) ; seekRight f = lift (seekRight f)
-
 ||| Like `seekRight`, but returns the original if the operation fails.
 public export
 seekRight' : (a -> Bool) -> VList a -> VList a ; seekRight' f = lift (seekRight' f)
-
-||| Advance right from the beginning, until p returns True.
-|||
-||| If found, return a zipper with the cursor at the given
-||| position. If we reach the end, returns Nothing.
--- public export
--- find : (a -> Bool) -> VList a -> Maybe (VList a) ; find f = lift (find f)
 
 ||| Like `find`, but returns the original if the operation fails.
 public export
@@ -155,7 +150,10 @@ public export
 findOrInsert : (a -> Bool) -> Lazy a -> VList a -> VList a
 findOrInsert f x = lift (findOrInsert f x)
 
-
+||| This implementation assumes a vertical orientation.
+|||
+||| The header is drawn at the top, followed by a horizontal rule the
+||| width of the given window.
 export
 implementation
      View itemT
@@ -163,7 +161,7 @@ implementation
 where
   size self = foldl
     (flip $ hunion . size)
-    (MkArea 0 0)
+    (MkArea 0 2) -- account for height of header and hrule.
     (Zipper.List.toList self.items)
 
   paint state window self = do
@@ -179,3 +177,17 @@ where
       Just cursor => packTop state window cursor
       Nothing => pure window
     ignore $ paintVertical (demoteFocused state) window right
+
+||| Construct a VList as a component with the user-supplied handler.
+export
+vlist
+  :  View itemT
+  => (header :  String)
+  -> (items  : List itemT)
+  -> (onKey  : Component.Handler (VList itemT) (List itemT) Key)
+  -> Component (List itemT)
+vlist header items onKey = component {
+  state   = (fromList header items),
+  handler = onKey,
+  get     = (Just . toList)
+}
