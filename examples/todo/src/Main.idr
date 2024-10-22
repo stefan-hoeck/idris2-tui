@@ -26,8 +26,8 @@ toggle : Item -> Item
 toggle = {completed $= not}
 
 View Item where
-  size self = size @{show} self.description
-  paint state window self = paint @{show} state window summary
+  size self = size self.description
+  paint state window self = paint state window summary
     where
       status : String
       status = case self.completed of
