@@ -30,5 +30,5 @@ It is still a work in progress, but you can start playing with it now.
 
 - [Tutorial](Tutorial.md)
 - [Documentation](TBD)
-- [Design Document](DESIGN.MD)
+- [Design Document](DESIGN.md)
 - [Roadmap](ROADMAP.md)
