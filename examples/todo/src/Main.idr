@@ -6,6 +6,10 @@ import System
 import System.File
 import System.File.ReadWrite
 import System.File.Virtual
+import TUI
+import TUI.MainLoop
+import TUI.MainLoop.Default
+import TUI.Zipper.List
 
 %default total
 %language ElabReflection
@@ -18,13 +22,17 @@ record Item where
   completed   : Bool
 %runElab derive "Item" [Show, Eq, Ord, FromJSON, ToJSON]
 
-record TodoList where
-  constructor L
-  items : List Item
-%runElab derive "TodoList" [Show, Eq, Ord, FromJSON, ToJSON]
+View (VList Item) where
+  size = ?hole
+  paint = ?hole2
+
+todoList : List Item -> Component (List Item)
+todoList items = component (fromList header items) onKey (Just . toList) where
+  header : String
+  onKey : Component.Handler (VList Item) (List Item) Key
 
 covering
-fromFile : String -> IO (Maybe TodoList)
+fromFile : String -> IO (Maybe (List Item))
 fromFile path = do
   Right contents <- readFile path | Left err => pure Nothing
   case decode contents of
@@ -32,14 +40,22 @@ fromFile path = do
     Right contents => pure $ Just contents
 
 covering
-toFile : String -> TodoList -> IO ()
+toFile : String -> List Item -> IO ()
 toFile path todolist = do
   ignore $ writeFile path $ encode todolist
+
+covering
+run : String -> IO ()
+run path = do
+  Just items <- fromFile path | Nothing => die "Error reading file"
+  case !(runComponent !getDefault ?component) of
+    Nothing => pure ()
+    Just items => toFile path items
 
 covering
 main : IO ()
 main = do
   case !getArgs of
     [_]       => die "No path given"
-    [_, path] => putStrLn $ show $ !(fromFile path)
+    [_, path] => run path
     _         => die "Expected exactly one argument."
