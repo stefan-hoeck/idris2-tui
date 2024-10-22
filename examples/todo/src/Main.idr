@@ -44,6 +44,8 @@ todoList items = component (fromList header items) onKey (Just . toList) where
   onKey : Component.Handler (VList Item) (List Item) Key
   onKey (Alpha '+') self = update $ insert (I "New Item" True) self
   onKey (Alpha 'q') self = yield $ toList self
+  onKey Up          self = update $ goLeft self
+  onKey Down        self = update $ goRight self
   onKey Enter       self = editSelected self
   onKey Escape      _    = exit
   onKey key         _    = ignore
