@@ -34,7 +34,9 @@ todoList items = component (fromList header items) onKey (Just . toList) where
 
   onKey : Component.Handler (VList Item) (List Item) Key
   onKey (Alpha '+') self = update $ lift (insert (I "New Item" True)) self
-  onKey key _ = exit
+  onKey (Alpha 'q') self = yield $ toList self
+  onKey Escape      _    = exit
+  onKey key         _    = ignore
 
 covering
 fromFile : String -> IO (Maybe (List Item))
