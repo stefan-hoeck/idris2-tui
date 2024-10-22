@@ -37,6 +37,7 @@ module TUI.Component.VList
 
 
 import Data.Maybe
+import Data.String
 import TUI.Component
 import TUI.Geometry
 import TUI.Layout
@@ -167,15 +168,12 @@ where
 
   paint state window self = do
     let (left, cursor, right) = decompose self.items
-    -- highlight header when we're at the beginning of the list.
-    -- honestly, it's this tricky bit of logic which motivates this
-    -- whole module.
-    headerState <- case (left, cursor) of
-      ([],  Nothing) => pure state
-      _              => pure $ demoteFocused state
-    -- draw the header
-    window <- packTop headerState window self.header
-    -- draw the rest of the zipper
+    window <- packTop Normal window self.header
+    window <- packTop Normal window HRule
+    -- when the beginning of the list is selected, draw an empty rectangle.
+    window <- case (left, cursor) of
+      ([],  Nothing) => packTop state window (replicate window.width ' ')
+      _              => pure window
     window <- paintVertical (demoteFocused state) window left
     window <- case cursor of
       Just cursor => packTop state window cursor

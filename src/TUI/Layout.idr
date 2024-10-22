@@ -124,11 +124,13 @@ paintHorizontal state window (x :: xs) = paintHorizontal state !(packLeft state 
 public export
 data Rule = HRule | VRule
 
-||| View implementation for rules
+||| View implementation for these visual separators.
+|||
+||| Use these with `pack*` for easy layout.
 export
 View Rule where
   size HRule = MkArea 0 1
   size VRule = MkArea 1 0
 
-  paint _ window HRule = hline window.nw window.size.width
-  paint _ window VRule = vline window.nw window.size.height
+  paint _ window HRule = hline window.nw window.hspan
+  paint _ window VRule = vline window.nw window.vspan
