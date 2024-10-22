@@ -1,0 +1,10 @@
+[custom.all.todo]
+type = "local"
+path = "."
+ipkg = "todo.ipkg"
+test = "test/test.ipkg"
+
+[custom.all.todo-test]
+type = "local"
+path = "test"
+ipkg = "test.ipkg"
