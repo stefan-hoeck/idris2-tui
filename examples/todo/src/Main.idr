@@ -22,9 +22,20 @@ record Item where
   completed   : Bool
 %runElab derive "Item" [Show, Eq, Ord, FromJSON, ToJSON]
 
+toggle : Item -> Item
+toggle = {completed $= not}
+
 View Item where
   size self = size @{show} self.description
-  paint state window self = paint @{show} state window self.description
+  paint state window self = paint @{show} state window summary
+    where
+      status : String
+      status = case self.completed of
+        True  => "[+]"
+        False => "[ ]"
+
+      summary : String
+      summary = "\{status} \{self.description}"
 
 ||| A component for editing the todolist
 todoList : List Item -> Component (List Item)
@@ -42,8 +53,9 @@ todoList items = component (fromList header items) onKey (Just . toList) where
     onMerge item (Just v) = insert ({description := v} item) self
 
   onKey : Component.Handler (VList Item) (List Item) Key
-  onKey (Alpha '+') self = update $ insert (I "New Item" True) self
-  onKey (Alpha 'q') self = yield $ toList self
+  onKey (Alpha '+') self = update $ insert (I "New Item" False) self
+  onKey (Alpha 'q') self = yield  $ toList self
+  onKey (Alpha ' ') self = update $ update toggle self
   onKey Up          self = update $ goLeft self
   onKey Down        self = update $ goRight self
   onKey Enter       self = editSelected self
