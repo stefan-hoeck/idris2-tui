@@ -15,7 +15,6 @@ To build the package: `pack build`
 
 To edit a file named todo.txt: `./run.sh todo.txt`
 
-|---------|------------------------------------|
 | Key     | Function                           |
 |---------|------------------------------------|
 | `+`     | Insert a new todo list item        |
