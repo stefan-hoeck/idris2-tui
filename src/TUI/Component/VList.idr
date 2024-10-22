@@ -81,6 +81,80 @@ export
 (.selected) : VList itemT -> Maybe itemT
 (.selected) self = cursor self.items
 
+||| Move the cursor to the beginning of the zipper.
+public export
+rewind : VList a -> VList a ; rewind = lift rewind
+
+||| Insert an element at the current position.
+public export
+insert : a -> VList a -> VList a ; insert e = lift (insert e)
+
+||| Delete element at current position.
+export
+delete : VList a -> VList a ; delete = lift delete
+
+||| Move insertion point rightward
+public export
+goRight : VList a -> VList a ; goRight = lift goRight
+
+||| Move insertion point rightward
+public export
+goLeft : VList a -> VList a ; goLeft = lift goLeft
+
+||| Replace element at the current position by the application of `f`.
+|||
+||| If the zipper is empty, returns an empty zipper.
+|||
+||| If the zipper has been rewound, has no effect.
+public export
+update : (a -> a) -> VList a -> VList a ; update f = lift (update f)
+
+||| Replace element at the current position.
+|||
+||| If the zipper is empty, returns an empty zipper.
+|||
+||| If the zipper has been rewound, has no effect.
+public export
+replace : a -> VList a -> VList a ; replace a = lift (replace a)
+
+||| Set the cursor over the Nth child from the left.
+|||
+||| Stops at the end if `n` is greater than the length of the zipper.
+public export
+seekTo : Nat -> VList a -> VList a ; seekTo n = lift (seekTo n)
+
+||| Advance rightward until `p x` gives `True`.
+|||
+||| If found, returns a zipper with the cursor at the given
+||| position. If we reach the end of the zipper, returns Nothing.
+-- public export
+-- seekRight : (a -> Bool) -> VList a -> Maybe (VList a) ; seekRight f = lift (seekRight f)
+
+||| Like `seekRight`, but returns the original if the operation fails.
+public export
+seekRight' : (a -> Bool) -> VList a -> VList a ; seekRight' f = lift (seekRight' f)
+
+||| Advance right from the beginning, until p returns True.
+|||
+||| If found, return a zipper with the cursor at the given
+||| position. If we reach the end, returns Nothing.
+-- public export
+-- find : (a -> Bool) -> VList a -> Maybe (VList a) ; find f = lift (find f)
+
+||| Like `find`, but returns the original if the operation fails.
+public export
+find' : (a -> Bool) -> VList a -> VList a ; find' f = lift (find' f)
+
+||| Find an element satisfying some predicate, or insert a default element.
+|||
+||| Always succeeds. The zipper will either be advanced to the first
+||| element satisfying the predicate, or the cursor will be under
+||| the newly-inserted default element.
+public export
+findOrInsert : (a -> Bool) -> Lazy a -> VList a -> VList a
+findOrInsert f x = lift (findOrInsert f x)
+
+
 export
 implementation
      View itemT
