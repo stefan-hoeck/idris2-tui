@@ -78,6 +78,10 @@ lift
 lift f = {items $= f}
 
 export
+(.selected) : VList itemT -> Maybe itemT
+(.selected) self = cursor self.items
+
+export
 implementation
      View itemT
   => View (VList itemT)
