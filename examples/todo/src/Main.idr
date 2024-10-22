@@ -33,6 +33,7 @@ todoList items = component (fromList header items) onKey (Just . toList) where
   header = "Description"
 
   onKey : Component.Handler (VList Item) (List Item) Key
+  onKey (Alpha '+') self = update $ lift (insert (I "New Item" True)) self
   onKey key _ = exit
 
 covering
