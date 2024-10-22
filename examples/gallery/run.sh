@@ -29,9 +29,22 @@
 # OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+shopt -s checkwinsize; (:;:)
+
+export LINES="${LINES}"
+export COLUMNS="${COLUMNS}"
 
 function shim {
     python input-shim.py 2>shim_log
 }
 
-shim | ./build/exec/ampii "$@" 2> debug_log
+case "$1" in
+    --debug)
+	shift
+	export IDRIS_TUI_MAINLOOP="input-shim"
+	shim | ./build/exec/gallery "$@" 2> debug_log
+	;;
+    *)
+	./build/exec/gallery
+	;;
+esac
