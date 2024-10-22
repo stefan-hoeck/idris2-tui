@@ -35,13 +35,14 @@ todoList items = component (fromList header items) onKey (Just . toList) where
   editSelected : VList Item -> IO $ Response (VList Item) (List Item)
   editSelected self = case self.selected of
     Nothing => ignore
-    Just item => push (textInput item.description) onMerge
+    Just item => push (textInput item.description) (onMerge item)
   where
-    onMerge : Maybe String -> VList Item
-    onMerge _ = self
+    onMerge : Item -> Maybe String -> VList Item
+    onMerge _    Nothing  = self
+    onMerge item (Just v) = insert ({description := v} item) self
 
   onKey : Component.Handler (VList Item) (List Item) Key
-  onKey (Alpha '+') self = update $ lift (insert (I "New Item" True)) self
+  onKey (Alpha '+') self = update $ insert (I "New Item" True) self
   onKey (Alpha 'q') self = yield $ toList self
   onKey Enter       self = editSelected self
   onKey Escape      _    = exit
