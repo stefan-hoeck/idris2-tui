@@ -1,6 +1,7 @@
 module Main
 
 
+import Data.List
 import TUI
 import TUI.MainLoop
 import TUI.MainLoop.Default
@@ -26,7 +27,7 @@ testCounter = component @{show} 0 onKey unavailable
 
 ||| A simple menu
 testMenu : Component String
-testMenu = spinner ["foo", "bar", "baz"]
+testMenu = Spinner.fromChoice ["foo", "bar", "baz"] "bar"
 
 ||| A component that represents a user-chosen value
 data TestModal = Default String | Selected String String
