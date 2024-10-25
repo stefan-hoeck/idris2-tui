@@ -26,6 +26,11 @@ any other existing TUI library.
 
 It is still a work in progress, but you can start playing with it now.
 
+Functionality is somewhat limited, but it is already useful for
+writing custom editors for JSON files, and it is *almost* useful for
+writing simple games. If you want to explore writing interactive
+software in Idris, `idris-tui` runs right in your (modern) terminal.
+
 # More Information
 
 - [Tutorial](Tutorial.md)
