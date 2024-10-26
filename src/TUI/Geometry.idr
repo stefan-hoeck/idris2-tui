@@ -265,7 +265,7 @@ namespace Rect
   (.splitBottom) b h =
     let
       bot = fromPoints (b.sw.shiftUp (h `minus` 1)) (b.se + unit)
-      top = fromPoints b.nw $ bot.se.shiftRight 1
+      top = fromPoints b.nw $ bot.ne.shiftRight 1
     in (top, bot)
 
   ||| The smallest bounding box fully containing both rectangles.
