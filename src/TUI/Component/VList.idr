@@ -39,6 +39,7 @@ module TUI.Component.VList
 import Data.Maybe
 import Data.String
 import TUI.Component
+import TUI.Component.Box
 import TUI.Geometry
 import TUI.Layout
 import TUI.Painting
@@ -170,7 +171,7 @@ where
     window <- packTop Normal window HRule
     -- when the beginning of the list is selected, draw an empty rectangle.
     window <- case (left, cursor) of
-      ([],  Nothing) => packTop state window (replicate window.width ' ')
+      ([],  Nothing) => packTop state window $ box (MkArea window.width 1) ' '
       _              => pure window
     window <- paintVertical (demoteFocused state) window left
     window <- case cursor of

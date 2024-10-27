@@ -35,7 +35,7 @@ import public Data.Vect
 import public Data.Vect.Quantifiers
 import TUI.Component
 import TUI.Component.Editor
-import TUI.Component.HList
+import TUI.Component.FocusRing
 import TUI.Layout
 import TUI.View
 import TUI.Zipper.List
@@ -147,7 +147,7 @@ View FocusState where
 export
 record Form (tys : Vect k Type) where
   constructor MkForm
-  fields : HList tys
+  fields : FocusRing tys
   split  : Nat
   focus  : FocusState
 
@@ -203,17 +203,29 @@ next self = case self.focus of
 |||
 ||| We can't completely support ARIA patterns until the the library
 ||| implements support for modifier keys (e.g. Shift + TAB).
+|||
+||| For now, tab moves focus. Escape exits the form. Enter is proxied
+||| to the form field which has focus, or if the submit button is
+||| focused, will yield the form value.
+|||
+||| If a form field yields, we advance to the next field, so that
+||| `Enter` in most stock components will also happen to do the right
+||| thing. Something about this bothers me, but we'll try it like this
+||| for now.
+|||
+||| XXX: to explore: is this necessary, or does the default handler of
+||| the new FocusRing component do the job for us?
 ariaKeys
   :  {k : Nat}
   -> {tys : Vect (S k) Type}
   -> Component.Handler (Form tys) (HVect tys) Key
 ariaKeys key self = case (key, self.focus) of
-  (Tab, _)        => update $ next self
-  (Escape, _)     => exit
-  (_, Edit)       => handleEdit
-  (Enter, Submit) => onSubmit
-  (Enter, Cancel) => exit
-  _               => ignore
+  (Tab,     _)     => update $ next self
+  (Escape,  _)     => exit
+  (_,      Edit)   => handleEdit
+  (Enter,  Submit) => onSubmit
+  (Enter,  Cancel) => exit
+  _                => ignore
 where
   validate : All Maybe a -> Maybe (HVect a)
   validate [] = Just []
@@ -221,11 +233,11 @@ where
     Yes _ => (fromJust x ::) <$> validate xs
     No _  => Nothing
 
-  onMerge : (Maybe a -> HList tys) -> Maybe a -> Form tys
+  onMerge : (Maybe a -> FocusRing tys) -> Maybe a -> Form tys
   onMerge merge result = {fields := merge result} self
 
   handleEdit : IO $ Response (Form tys) (HVect tys)
-  handleEdit = case !(handle key self.fields) of
+  handleEdit = case !(handleSelected key self.fields) of
     Continue state => update $ {fields := !state} self
     Yield _        => update $ next self
     Exit           => ignore
@@ -233,15 +245,14 @@ where
 
   ||| validate form fields
   onSubmit : IO $ Response (Form tys) (HVect tys)
-  onSubmit = case validate self.fields.values of
-    Nothing => ignore
+  onSubmit = case allIsJust self.fields.values of
+    Nothing     => ignore
     Just values => yield values
 
 ||| Construct a concrete form from a list of fields.
 |||
 ||| @k        The number of fields.
 ||| @tys      The type of each field.
-||| @editable Captures the editable implementation for each field value.
 ||| @fields   The concrete list of fields
 export
 new
@@ -249,7 +260,7 @@ new
   -> {tys : Vect (S k) Type}
   -> (fields : All Field tys)
   -> Form tys
-new fields = MkForm (new 0 mkfields) maxLabelWidth Edit
+new fields = MkForm (new mkfields 0) maxLabelWidth Edit
   where
     ||| Get the character width of the longest label in the form.
     maxLabelWidth : Nat
@@ -272,11 +283,10 @@ new fields = MkForm (new 0 mkfields) maxLabelWidth Edit
     mkfields : All Component tys
     mkfields = mapProperty mkfield fields
 
-||| Construct a form component that uses ARIA keys for navigation and editing.
+||| Construct a form component that uses ARIA keys for navigation.
 |||
 ||| @k        The number of fields.
 ||| @tys      The type of each field.
-||| @editable Proof that all field types are editable.
 ||| @fields   A list of values to populate the form.
 |||
 ||| The value of the form is yielded to the parent when the user

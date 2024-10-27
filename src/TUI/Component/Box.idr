@@ -27,25 +27,46 @@
 -- OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 -- OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-||| TUI Framework.
-|||
-||| See README.md for a detailed explanation of the code in this
-||| package.
-module TUI
 
-import public TUI.Component
-import public TUI.Component.Editor
-import public TUI.Component.FocusRing
-import public TUI.Component.Form
-import public TUI.Component.Menu
-import public TUI.Component.Numeric
-import public TUI.Component.PushButton
-import public TUI.Component.Modal
-import public TUI.Component.TextInput
-import public TUI.Component.VList
-import public TUI.Event
-import public TUI.Image
-import public TUI.Layout
-import public TUI.MainLoop
-import public TUI.Painting
-import public TUI.View
+||| A box that knows how to draw itself
+module TUI.Component.Box
+
+
+import TUI.Component
+import TUI.Geometry
+import TUI.Painting
+import TUI.View
+
+
+||| A styled rectangle.
+export
+record Box where
+  constructor MkBox
+  size  : Area
+  char  : Char
+  attrs : List SGR
+
+||| Create a styled rectangle.
+|||
+||| Default attrs are empty. You can override attrs by passing `{attrs
+||| = ...}`
+export
+box
+  :  (size : Area)
+  -> (char : Char)
+  -> {default [] attrs : List SGR}
+  -> Box
+box size char {attrs} = MkBox size char attrs
+
+
+export
+View Box where
+  size self = self.size
+  paint state window self = do
+    case state of
+      Focused => do
+        sgr self.attrs
+        reverseVideo
+      _ => sgr self.attrs
+    fill self.char window
+

@@ -136,3 +136,11 @@ View v1 => View v2 => View (Either v1 v2) where
 
   paint state window (Left self)  = paint state window self
   paint state window (Right self) = paint state window self
+
+||| An `Area` can be used as a blank view, or spacer, of fixed size.
+|||
+||| This is useful with functions like `packTop and `paintVertical`.
+export
+View Area where
+  size = id
+  paint _ _ _ = pure ()

@@ -131,6 +131,12 @@ namespace ComponentDSL
   ignore : {auto self : stateT} -> IO (Response stateT _)
   ignore = update self
 
+  ||| A generic response: yield if value is `Just`, ignore if nothing
+  export
+  exitIf : {auto self : stateT} -> Maybe valueT -> IO (Response stateT valueT)
+  exitIf Nothing  = ignore
+  exitIf (Just v) = yield v
+
   ||| A generic response: pass control to the given child component.
   |||
   ||| When the component yields or exits, the result is folded into the
@@ -181,3 +187,58 @@ component init handler get = MkComponent {
   get = get,
   vimpl = %search
 }
+
+||| Take a `Component a` to a `Component b` via `f`.
+|||
+||| This is useful for specializing library components to
+||| application-specific types.
+|||
+||| The function `f` applies only to the yield value, leaving the
+||| internal state and interactive behavior unchanged.
+|||
+||| Example: Take a generic numeric component and produce a
+||| length. Here, `(.mm`) is a function `Double -> Length`.
+|||
+|||    inputMM : Length -> Component Length
+|||    inputMM length = (.mm) <$> numeric (length.convertTo MilliMeters)
+export
+Functor Component where
+  map f wrapped = component @{wrapped.vimpl} wrapped.state handle get
+    where
+      get : wrapped.State -> Maybe b
+      get self = f <$> wrapped.get self
+
+      handle : Component.Handler wrapped.State b Key
+      handle key state = case !(wrapped.handler key state) of
+        Continue state => pure $ Continue state
+        Yield result   => yield $ f result
+        Exit           => exit
+        Push top merge => push top merge
+
+
+||| This is like above `map`, but takes a partial function, flattening
+||| the result.
+|||
+||| This is useful when you want to do further processing or
+||| validation on the yield value.
+|||
+||| Note: if the wrapped component yields, but `f` returns Nothing,
+||| the response is equivalent to `ignore`, rather than `exit`. The
+||| assumption is that the component has failed validation, and so the
+||| component should remain in place.
+|||
+||| XXX: does this correspond to a prelude interface?
+export
+mapMaybe : (a -> Maybe b) -> Component a -> Component b
+mapMaybe f wrapped = component @{wrapped.vimpl} wrapped.state handle get
+  where
+    get : wrapped.State -> Maybe b
+    get self = join $ f <$> wrapped.get self
+
+    handle : Component.Handler wrapped.State b Key
+    handle key state = case !(wrapped.handler key state) of
+      Continue state => pure $ Continue state
+      Yield result   => exitIf $ f result
+      Exit           => exit
+      Push top merge => push top merge
+
