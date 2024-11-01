@@ -23,6 +23,7 @@ modules = TUI
         , TUI.Component.Numeric
         --, TUI.Component.Pane
         , TUI.Component.PushButton
+        , TUI.Component.Table
         , TUI.Component.TextInput
         , TUI.Component.VList
         , TUI.DFA
