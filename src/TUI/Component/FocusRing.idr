@@ -102,13 +102,6 @@ choose
   -> FocusRing tys
 choose c = {selection := c}
 
-||| XXX: this feels like a library function
-export
-allIsJust : All Maybe a -> Maybe (HVect a)
-allIsJust [] = Just []
-allIsJust ((Just x) :: xs) = (x ::) <$> allIsJust xs
-allIsJust (Nothing  :: xs) = Nothing
-
 ||| Get the current values for each component.
 export
 (.values)
