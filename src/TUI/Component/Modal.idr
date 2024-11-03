@@ -33,6 +33,8 @@ module TUI.Component.Modal
 
 
 import TUI.Component
+import Data.List
+import Data.List.Quantifiers
 
 
 %default total
@@ -135,3 +137,40 @@ export
 View (Modal t) where
   size self = size self.component
   paint state window self = paint state window self.component
+
+||| This view nests modals visually using `inset`.
+|||
+||| The root component gets the full window. Modals are inset inside
+||| inside the parent like popup dialogs.
+|||
+||| To use this, pass `@{inset}` in your call to `runComponent`,
+||| `runView`, `paint`, `component`, etc.
+export
+[inset] View (Modal t) where
+  size self = union (size self.component) (sizeStack self.stack)
+    where
+      sizeStack : Stack _ _ -> Area
+      sizeStack [] = empty
+      sizeStack (merge :: xs) = union (size $ merge Nothing) (sizeStack xs)
+
+  paint state window self = case self of
+    (M component []) => paint state window component
+    (M component stack) => do
+      window <- paintStack window stack
+      fill ' ' window
+      paint state window component
+      border (grow window)
+  where
+    paintStack : Rect -> Stack _ _ -> Context Rect
+    paintStack window [] = pure window
+    paintStack window [merge] = do
+      paint Disabled window (merge Nothing)
+      pure (inset window (MkArea 3 3))
+    paintStack window (merge :: ys) = do
+      window <- paintStack window ys
+      fill ' ' window
+      paint Disabled window (merge Nothing)
+      sgr [SetStyle Faint]
+      border (grow window)
+      sgr [Reset]
+      pure (inset window (MkArea 3 3))

@@ -327,7 +327,7 @@ screen : IO Rect
 screen = do
   width  <- parseEnv "COLUMNS" 80 parsePositive
   height <- parseEnv  "LINES"  24 parsePositive
-  pure $ MkRect origin $ MkArea width height
+  pure $ MkRect origin $ MkArea (width `minus` 1) (height `minus` 1)
 where
   parseEnv : String -> a -> (String -> Maybe a) -> IO a
   parseEnv key def parse = case !(getEnv key) of
@@ -342,10 +342,23 @@ inset self offset = {
   size := self.size - (2 * offset)
 } self
 
+||| shrink the rectangle by the given size
+export
+outset : Rect -> Area -> Rect
+outset self offset = {
+  pos  := self.pos - offset,
+  size := self.size + (2 * offset)
+} self
+
 ||| Inset a rectangle uniformly by one row and column.
 export
 shrink : Rect -> Rect
 shrink r = inset r $ MkArea 1 1
+
+||| Inset a rectangle uniformly by one row and column.
+export
+grow : Rect -> Rect
+grow r = outset r $ MkArea 1 1
 
 
 namespace Test

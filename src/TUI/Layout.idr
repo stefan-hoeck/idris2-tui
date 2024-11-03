@@ -148,6 +148,6 @@ distributeHorizontal
   -> Context ()
 distributeHorizontal [] [] window = pure ()
 distributeHorizontal (c :: cs) (view :: views) window = do
-  let (left, right) = window.splitLeft c
+  let (left, right) = window.splitLeft (c + 1)
   paint Normal left view
   distributeHorizontal cs views right

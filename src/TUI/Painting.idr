@@ -205,8 +205,8 @@ namespace Box
   |||
   ||| Use with `shrink` or `inset` to layout contents within the frame.
   export
-  box : Rect -> Context ()
-  box r = do
+  border : Rect -> Context ()
+  border r = do
     -- draw the lines at full size
     hline r.nw r.hspan
     hline r.sw r.hspan

@@ -215,9 +215,7 @@ Functor Component where
         Exit           => exit
         Push top merge => push top merge
 
-
-||| This is like above `map`, but takes a partial function, flattening
-||| the result.
+||| This is like above `map`, but takes a partial function.
 |||
 ||| This is useful when you want to do further processing or
 ||| validation on the yield value.
@@ -242,3 +240,7 @@ mapMaybe f wrapped = component @{wrapped.vimpl} wrapped.state handle get
       Exit           => exit
       Push top merge => push top merge
 
+||| Cute alias for `mapMaybe' above.
+export
+(<$?>) : (a -> Maybe b) -> Component a -> Component b
+(<$?>) f c = mapMaybe f c

@@ -80,8 +80,8 @@ interface MainLoop a where
 ||| Accordingly, it drops the `render` parameter.
 export covering
 runView
-  :  MainLoop ml
-  => View stateT
+  :  View stateT
+  => MainLoop ml
   => (mainloop : ml)
   -> (onKey : Event.Handler stateT valueT Key)
   -> stateT
@@ -96,8 +96,9 @@ runView mainloop onKey init = runRaw {
 ||| Like runView, but for `Component`.
 export covering
 runComponent
-  :  MainLoop ml
+  :  (vimpl : View (Modal valueT))
+  => MainLoop ml
   => (mainloop : ml)
   -> (self : Component valueT)
   -> IO (Maybe valueT)
-runComponent mainloop self = runView mainloop handle (root self)
+runComponent mainloop self = runView @{vimpl} mainloop handle (root self)
