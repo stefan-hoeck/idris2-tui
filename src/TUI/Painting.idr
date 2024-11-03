@@ -59,6 +59,8 @@ module TUI.Painting
 import public Control.ANSI
 import Data.String
 import System
+import System.File
+import System.File.Virtual
 import public TUI.Geometry
 
 
@@ -105,6 +107,13 @@ namespace Context
   export
   Monad Context where
     (C x) >>= f = C $ x >>= (.action) . f
+
+||| Debug printf for paint operations
+export
+debug : Show a => String -> a -> Context a
+debug pf x = do
+  cheat $ ignore $ fPutStrLn stderr $ "\{pf}: \{show x}"
+  pure x
 
 ||| Move the cursor to the given point
 export
@@ -269,9 +278,9 @@ namespace VTerm
   ||| synchronous update Supported by iTerm2 and other fancy terminals
   export
   beginSyncUpdate : IO ()
-  beginSyncUpdate = putStrLn "\ESC[?2026h"
+  beginSyncUpdate = putStr "\ESC[?2026h"
 
   ||| synchronous update supported by iTerm2 and other fancy terminals
   export
   endSyncUpdate : IO ()
-  endSyncUpdate = putStrLn "\ESC[?2026l"
+  endSyncUpdate = putStr "\ESC[?2026l"

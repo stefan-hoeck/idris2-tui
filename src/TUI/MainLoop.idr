@@ -89,7 +89,7 @@ runView
 runView mainloop onKey init = runRaw {
   mainloop = mainloop,
   onKey = onKey,
-  render = (View.paint Focused !(screen)),
+  render = (View.paint Focused $ !screen),
   init
 }
 
