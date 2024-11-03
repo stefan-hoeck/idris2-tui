@@ -101,6 +101,7 @@ where
     [_, "topmost"] => pure %search
     [_, "inset"] => pure inset
     [_, "fromTop"] => pure fromTop
+    [_, "fromLeft"] => pure fromLeft
     _ => pure inset
 
 ||| Application entry point

@@ -136,7 +136,7 @@ where
 |||
 ||| It paints only the top-most component into the given window.
 export
-View (Modal t) where
+[topmost] View (Modal t) where
   size self = size self.component
   paint state window self = paint state window self.component
 
@@ -177,7 +177,7 @@ export
       sgr [Reset]
       pure (inset window (MkArea 3 3))
 
-||| This view stacks modals vertically from the top.
+||| This view stacks modals vertically, from the top.
 |||
 ||| To use this, pass `@{fromTop}` in your call to `runComponent`,
 ||| `runView`, `paint`, `component`, etc.
@@ -187,7 +187,7 @@ export
     where
       sizeStack : Stack _ _ -> Area
       sizeStack [] = empty
-      sizeStack (merge :: xs) = union (size $ merge Nothing) (sizeStack xs)
+      sizeStack (merge :: xs) = hunion (size $ merge Nothing) (sizeStack xs)
 
   paint state window self = case self of
     (M component []) => paint state window component
@@ -204,3 +204,36 @@ export
       window <- paintStack window ys
       window <- packTop Disabled window HRule
       packTop Disabled window (merge Nothing)
+
+||| This view stacks modals horizontally, from the left.
+|||
+||| To use this, pass `@{fromLeft}` in your call to `runComponent`,
+||| `runView`, `paint`, `component`, etc.
+export
+[fromLeft] View (Modal t) where
+  size self = union (size self.component) (sizeStack self.stack)
+    where
+      sizeStack : Stack _ _ -> Area
+      sizeStack [] = empty
+      sizeStack (merge :: xs) = vunion (size $ merge Nothing) (sizeStack xs)
+
+  paint state window self = case self of
+    (M component []) => paint state window component
+    (M component stack) => do
+      window <- paintStack window stack
+      window <- packLeft state window VRule
+      ignore $ packLeft state window component
+  where
+    paintStack : Rect -> Stack _ _ -> Context Rect
+    paintStack window [] = pure window
+    paintStack window [merge] = do
+      packLeft Disabled window (merge Nothing)
+    paintStack window (merge :: ys) = do
+      window <- paintStack window ys
+      window <- packLeft Disabled window VRule
+      packLeft Disabled window (merge Nothing)
+
+||| The default view should be the inset view.
+export %hint
+defaultView : View (Modal t)
+defaultView = inset

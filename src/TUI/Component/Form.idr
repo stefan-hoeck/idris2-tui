@@ -166,7 +166,7 @@ implementation
   -> {tys : Vect (S k) Type} -- see note below
   -> View (Form tys)
 where
-  size self = size @{vertical} self.fields
+  size self = vunion (size @{vertical} self.fields) (size self.focus)
   paint state window self = do
     vline (window.nw.shiftRight (self.split + 1)) window.height
     ignore $ packTop @{vertical} fieldsState window self.fields
