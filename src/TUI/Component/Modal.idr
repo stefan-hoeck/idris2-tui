@@ -33,6 +33,8 @@ module TUI.Component.Modal
 
 
 import TUI.Component
+import TUI.Painting
+import TUI.Layout
 import Data.List
 import Data.List.Quantifiers
 
@@ -174,3 +176,31 @@ export
       border (grow window)
       sgr [Reset]
       pure (inset window (MkArea 3 3))
+
+||| This view stacks modals vertically from the top.
+|||
+||| To use this, pass `@{fromTop}` in your call to `runComponent`,
+||| `runView`, `paint`, `component`, etc.
+export
+[fromTop] View (Modal t) where
+  size self = union (size self.component) (sizeStack self.stack)
+    where
+      sizeStack : Stack _ _ -> Area
+      sizeStack [] = empty
+      sizeStack (merge :: xs) = union (size $ merge Nothing) (sizeStack xs)
+
+  paint state window self = case self of
+    (M component []) => paint state window component
+    (M component stack) => do
+      window <- paintStack window stack
+      window <- packTop state window HRule
+      paint state window component
+  where
+    paintStack : Rect -> Stack _ _ -> Context Rect
+    paintStack window [] = pure window
+    paintStack window [merge] = do
+      packTop Disabled window (merge Nothing)
+    paintStack window (merge :: ys) = do
+      window <- paintStack window ys
+      window <- packTop Disabled window HRule
+      packTop Disabled window (merge Nothing)

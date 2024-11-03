@@ -92,9 +92,16 @@ testForm = ariaForm [
 partial export
 gallery : IO ()
 gallery = do
-  case !(runComponent @{inset} !getDefault testForm) of
+  case !(runComponent @{!vimpl} !getDefault testForm) of
     Nothing => putStrLn "User Canceled"
     Just choice => putStrLn $ "User selected: \{show choice}"
+where
+  vimpl : IO (View (Modal _))
+  vimpl = case !getArgs of
+    [_, "topmost"] => pure %search
+    [_, "inset"] => pure inset
+    [_, "fromTop"] => pure fromTop
+    _ => pure inset
 
 ||| Application entry point
 partial
