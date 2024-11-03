@@ -98,10 +98,11 @@ gallery = do
 where
   vimpl : IO (View (Modal _))
   vimpl = case !getArgs of
-    [_, "topmost"] => pure %search
+    [_, "topmost"] => pure topmost
     [_, "inset"] => pure inset
     [_, "fromTop"] => pure fromTop
     [_, "fromLeft"] => pure fromLeft
+    [_, "centered"] => pure centered
     _ => pure inset
 
 ||| Application entry point

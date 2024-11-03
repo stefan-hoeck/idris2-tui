@@ -177,6 +177,41 @@ export
       sgr [Reset]
       pure (inset window (MkArea 3 3))
 
+||| Centers modals within the parent viewport at their requested size.
+|||
+||| The root component gets the full window.
+|||
+||| To use this, pass `@{inset}` in your call to `runComponent`,
+||| `runView`, `paint`, `component`, etc.
+export
+[centered] View (Modal t) where
+  size self = union (size self.component) (sizeStack self.stack)
+    where
+      sizeStack : Stack _ _ -> Area
+      sizeStack [] = empty
+      sizeStack (merge :: xs) = union (size $ merge Nothing) (sizeStack xs)
+
+  paint state window self = case self of
+    (M component []) => paint state window component
+    (M component stack) => do
+      paintStack window stack
+      let modal = (size component).centerIn window
+      fill ' ' modal
+      paint state modal component
+      border (grow modal)
+  where
+    paintStack : Rect -> Stack _ _ -> Context ()
+    paintStack window [] = pure ()
+    paintStack window [merge] = do
+      paint Disabled window (merge Nothing)
+    paintStack window (merge :: ys) = do
+      paintStack window ys
+      let view = (merge Nothing)
+      let modal = (size view).centerIn window
+      fill ' ' modal
+      paint Disabled modal view
+      border (grow modal)
+
 ||| This view stacks modals vertically, from the top.
 |||
 ||| To use this, pass `@{fromTop}` in your call to `runComponent`,

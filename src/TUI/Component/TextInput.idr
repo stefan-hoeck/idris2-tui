@@ -82,7 +82,7 @@ insert c = {chars $= insert c}
 export
 View TextInput where
   -- Size is the sum of left and right halves
-  size self = MkArea (length self.chars) 1
+  size self = MkArea (length self.chars + 1) 1
 
   -- when un-focused, just show the string value.
   paint Normal rect self = do
