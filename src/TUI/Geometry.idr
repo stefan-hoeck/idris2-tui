@@ -49,6 +49,25 @@ record Pos where
   y : Nat
 %runElab derive "Pos" [Eq, Ord, Show]
 
+||| The dimensions of a screen view
+public export
+record Area where
+  constructor MkArea
+  width : Nat
+  height : Nat
+%runElab derive "Area" [Eq, Ord, Show]
+
+||| A rectangular screen region.
+|||
+||| This is a useful concept for layout. We can abstractly refer to
+||| the different corners of the box.
+public export
+record Rect where
+  constructor MkRect
+  pos  : Pos
+  size : Area
+%runElab derive "Rect" [Eq, Ord, Show]
+
 namespace Pos
 
   ||| Top-left screen corner
@@ -71,26 +90,6 @@ namespace Pos
   public export
   (.shiftUp) : Pos -> Nat -> Pos
   (.shiftUp) self offset = { y $= (`minus` offset) } self
-
-
-||| The dimensions of a screen view
-public export
-record Area where
-  constructor MkArea
-  width : Nat
-  height : Nat
-%runElab derive "Area" [Eq, Ord, Show]
-
-||| A rectangular screen region.
-|||
-||| This is a useful concept for layout. We can abstractly refer to
-||| the different corners of the box.
-public export
-record Rect where
-  constructor MkRect
-  pos  : Pos
-  size : Area
-%runElab derive "Rect" [Eq, Ord, Show]
 
 namespace OverloadsPosAreaPos
   ||| Adding a point to an area returns a new point.
@@ -336,12 +335,19 @@ namespace Rect
   (.center) : Rect -> Pos
   (.center) r = r.nw + (r.size / 2)
 
+namespace OverloadsRectPos
+
+  public export
+  (.contains) : Rect -> Pos -> Bool
+  (.contains) self (MkPos x y) =
+       (x >= self.w) && (x <= self.e)
+    && (y >= self.n) && (y <= self.s)
+
 public export
 (.contains) : Rect -> Area -> Bool
 (.contains) self a = case (self.width >= a.width, self.height >= a.height) of
   (True, True) => True
   _ => False
-
 
 public export
 (.centerOn) : Area -> Pos -> Rect
