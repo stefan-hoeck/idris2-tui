@@ -88,9 +88,9 @@ runView
   -> IO (Maybe valueT)
 runView mainloop onKey init = runRaw {
   mainloop = mainloop,
-  onKey = onKey,
-  render = (View.paint Focused $ !screen),
-  init
+  onKey    = onKey,
+  render   = View.paint Focused !screen,
+  init     = init
 }
 
 ||| Like runView, but for `Component`.
