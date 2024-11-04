@@ -14,9 +14,10 @@ modules = TUI
         , TUI
         , TUI.Util
         , TUI.Component
+        , TUI.Component.Box
         , TUI.Component.Editor
+        , TUI.Component.FocusRing
         , TUI.Component.Form
-        , TUI.Component.HList
         , TUI.Component.Menu
         , TUI.Component.Modal
         , TUI.Component.Numeric

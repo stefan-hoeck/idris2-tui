@@ -33,6 +33,9 @@
 ||| can imagine this expanding over time.
 module TUI.Layout
 
+
+import Data.Vect
+import Data.Vect.Quantifiers
 import TUI.Painting
 import TUI.Geometry
 import TUI.View
@@ -90,7 +93,6 @@ packRight state window self = do
   paint state right self
   pure left
 
-
 ||| Paint the given list of views, laying them out vertically within
 ||| `window`.
 export
@@ -134,3 +136,18 @@ View Rule where
 
   paint _ window HRule = hline window.nw window.hspan
   paint _ window VRule = vline window.nw window.vspan
+
+||| Distribute views horizontally according to the cell widths.
+export
+distributeHorizontal
+  :  View itemT
+  => {k       : Nat}
+  -> (columns : Vect k Nat)
+  -> (views   : Vect k itemT)
+  -> (window  : Rect)
+  -> Context ()
+distributeHorizontal [] [] window = pure ()
+distributeHorizontal (c :: cs) (view :: views) window = do
+  let (left, right) = window.splitLeft c
+  paint Normal left view
+  distributeHorizontal cs views right

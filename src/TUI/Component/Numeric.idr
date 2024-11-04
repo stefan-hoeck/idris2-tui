@@ -194,7 +194,7 @@ fromValue v = fromString new $ unpack $ show v
     fromString self [] = self
     fromString self (x :: xs) = case charToInput {a = a} x of
       Nothing => fromString self xs
-      Just i => insert i $ fromString self xs
+      Just i => fromString (insert i self) xs
 
 ||| Implement Model for supported number types.
 export
