@@ -261,3 +261,39 @@ namespace Data.Vect.Quantifiers
     -> p (index i xs)
   get FZ     (x :: xs) = x
   get (FS i) (x :: xs) = get i xs
+
+  -- thanks to @Hreyfill and @Red Krow
+  --
+  -- see discord msgs:
+  -- https://discord.com/channels/827106007712661524/834611018775789568/1302304642897678397
+  -- https://discord.com/channels/827106007712661524/834611018775789568/1302323106286800940
+
+  ||| A type-level helper function used in the signature of `happly`
+  |||
+  ||| This essentially folds over the argument list with `->`,
+  ||| converting `[Foo, Bar, Baz] Quux` into `Foo -> Bar -> Baz ->
+  ||| Quux`.
+  public export
+  0 HFunc : (inputs : Vect k Type) -> (return : Type) -> Type
+  HFunc []            return = return
+  HFunc (arg :: args) return = arg -> (HFunc args) return
+
+  ||| Apply an HVect to a function which matches the given type.
+  |||
+  ||| This is useful for form validation, to convert a generic HList
+  ||| to an application-specific record type.
+  public export
+  happly
+    :  {0 args : Vect k Type}
+    -> (HFunc args return)
+    -> HVect args
+    -> return
+  happly const [] = const
+  happly func  (arg :: args) = happly (func arg) args
+
+  ||| Convert an HVect of Maybes to a Maybe (HVect)
+  export
+  allIsJust : All Maybe a -> Maybe (HVect a)
+  allIsJust [] = Just []
+  allIsJust ((Just x) :: xs) = (x ::) <$> allIsJust xs
+  allIsJust (Nothing  :: xs) = Nothing
