@@ -1,36 +1,38 @@
 # Kown Issues and Limitations
 
-## No Buffering (and therefore, no scrolling)
+## No Buffering
 
-This is a design limitation. See previous section.
+The trouble with buffering is that it forces us to re-implement much
+of the same logic that the terminal itself already implements. This
+library tries to simply pass through escape squences as directly as
+possible.
 
-What you lose without buffering is direct support for overlapping
-windows. More tragically, there is no support for *clipping*, so it's
-up to application code not render out-of-bounds. This also makes makes
-scrolling components tricky to implement.
+Drawing order matters. Things drawn later occlude things which were
+drawn earlier. I find this is fairly intuitive, actually. It also
+dovetails well with structural recursion.
 
-The drawing model favors a left-to-right, top-to-bottom drawing order,
-which is robust against the inability to clip painting to a specific
-region of the screen.
+One downside is that it's up to the application to keep track of draw
+attributes. This library tries to mitigate this as much as possible.
 
-Fortunately, this dovetails with structural recursion. See `*split`,
-and `distributeHorizonatal` in `TUI.Geometry` module. Or see `pack*`
-and `paint*` in `TUI.View`.
+Another downside is that it's possible for unsanitized input to be
+injected into your terminal, and that's kindof bad. There's no
+mitigation for this as of yet.
 
-The `VList` component aims to suport 
+## Incorrect String Sizing
 
-## Limited Key Handling
-
-There's rudimentary ANSI decoding for basic keys. It's good enough to
-at least start coding interactive things that run in your terminal,
-but it's not yet enough to write a full-fledged application.
+A bunch of components and routines assume one codepoint = one
+column. Addressing this is a big deal, and will happen later. For now,
+there are various ways you can fudge sizing if you need to. The
+passthrough-oriented design should be a bit more robust to issues
+around this than if we relied on buffering.
 
 ## Event Types are Hard Coded
 
 The existing event types are hard-coded into the library mainloop and
-input shim. The reason for this is that I can't figure out the best
-way to generalize event handling without breaking other features of
-the API that I think I like..
+input shim.
+
+This must wait until I can figure out the best way to generalize event
+handling without breaking other features of the API that I enjoy.
 
 ## <a name="kbd">Keyboard Input
 
@@ -53,6 +55,10 @@ strings, etc. Therefore, there is no mechanism to support graceful
 degredation and / or fallback functionality. Supported terminals are
 supported, all others are not.
 
+In particular, almost nothing in this libary works without support for
+synchronized updates, so there's not really a "graceful" fallback in
+this case.
+
 ## Localization, Internationalization, and Accessiblity
 
 I hope to get to this at some point. And I aim to do a decent job when
@@ -64,25 +70,30 @@ this, and it's just too soon to say.
 I can see no reason why this library couldn't eventually support
 running in the browser, particularly with the help of an embedded
 VTE. This could be an easy and fun way to create single page apps with
-a certain nerdy aesthetic.
+a certain nerdy aesthetic. It would also be neat way to host all the
+demos on github.io.
 
 # Road Map
 
-Here's a rough priority list, subject to change. The first release
-will be `v0.1`. The next minor release will be `v0.2`, and will
-include breaking changes.
+Here's a rough priority list, subject to change. Development of v0.1
+is still ongoing.
 
 - v0.1
-  - continue developing ampii closely with idris-tui
-  - set up CI github actions
-  - write up tutorial.
-  - pipeline to generate animated gifs.
-- v0.2 (breaking API change)
-  - define *all* keys and key-report mode
+  - continue developing ampii closely with idris-tui.
+  - set up CI github actions.
+  - pipeline to generate animated gifs from included examples.
+- v0.2
+  - full support for all keys (breaking changes to Key type).
+  - Component will support user-defined events (breaking change).
   - scrub API for bad names
 	- favor `(.methods)` when appropriate (`window.splitLeft 1` over
       `splitLeft window 1`.
-- v1.0
- - solve the buffering / scrolling problem
- - handle *all* the keys, and key-report mode.
- - implement asynchronous mainloop
+  - write up tutorial.
+- v0.3
+  - feature detection / progressive enhancement.
+  - support for gettext or something equivalent.
+  - sanitize all strings sent to terminal (breaking change).
+  - correctly calculate string column widths.
+  - browser compatibility shim
+	- demos hosted on github pages.
+

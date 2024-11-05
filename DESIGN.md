@@ -108,19 +108,20 @@ confusing. We're working with character cells rather than geometric
 points. If you're experiencing issues with layout, it's possible
 there's an off-by-one issue in this library.
 
-If you stick to using the `pack*` family of functions for layout, you
-should not have to worry too much about this.
+A `Rect` is a tuple of a Pos and an Area. Rect has a bunch of useful
+methods, like `(.s)` which returns its south edge, or `(.sw)` which
+returns its southwest corner.
 
 ## Painting ##
 
 - `Context` models the state of the terminal window
 - Uses types from `TUI.Geometry`
 
-In comparison to ncurses, this library does direct drawing to the
-terminal. And so, there are no intermediate buffers. Moreover, there
-is no optimization of screen updates. If all you want to do is direct
-rendering, you can just use the routines in `Painting` to get the job
-done. Use `runRaw` in `MainLoop` to pass in an explicit rendering
+In comparison to ncurses and vty, this library does direct drawing to
+the terminal. And so, there are no intermediate buffers. Moreover,
+there is no optimization of screen updates.
+
+### Synchronous Updates ###
 
 Instead of optimizing updates, I use: [iTerm2's synchronous updates](
 https://gitlab.com/gnachman/iterm2/-/wikis/synchronized-updates-spec
@@ -133,10 +134,11 @@ may or may not be usable: the more bytes written to standard out, the
 more likely you will experience flicker. This is why libraries like
 ncurses do differential updates.
 
-Why not do differential updates, then? Well, I don't want to have to
-buffer the output just yet. I want to explore sixels, 24-bit color,
-and other experimental features before I commit to the complexity and
-overhead of buffering output.
+### Low-Level Drawing ###
+
+If all you want to do is low-level rendering, you can use the routines
+in `Painting` to get the job done. Call `runRaw` from your application
+main, passing in an explicit drawing function.
 
 Painting is fundamentally procedural, and painting order matters!
 
@@ -146,24 +148,19 @@ Painting is fundamentally procedural, and painting order matters!
 knows how to paint itself into a terminal `Context`, in one of a fixed
 number of `State`s, and within a given `Rect`.
 
-That views stay within bounds is `*not*` enforced by this library, as
-there's no mechanism for it (see above). I may try to enforce this
-later, if I can think of the right mechanism with which to do so. For
-now, `View` implementations should try their best to voluntarily stay
-in bounds.
+That views stay within bounds is `*not*` enforced by this library.
 
-A view can be drawn in an arbitrary window. A view should do its best
-to scale, responsively, into this window. If a library View
-implementation fails to scale responsibly, please open an
-issue. Likewise, if you can justify a good *exception* to this rule,
-please open an issue.
+`View` implementations should make a best effort to scale themselves
+to fit the given window. Sometimes this isn't possible, or isn't
+desired, and so you retain the freedom to color outside the
+lines. Remember, drawing order matters. Use this to your advanage.
 
 ## Layout ##
 
-The `Layout` module provides a family of functions for automatically
-aranging `View`s on screen. These rely on `View`s correctly reporting
-their `size`, so be sure and test your `View` implementations against
-these functions.
+The `Layout` module provides a family of functions for aranging
+`View`s on screen. These rely on `View`s correctly reporting their
+`size`, so be sure and test your `View` implementations against these
+functions.
 
 ## Components ##
 
@@ -192,18 +189,3 @@ guard against it, or exploit it.
 
 Components can also compose as *modally*, via the
 semantically-blocking `push` / `Push` response.
-
-## Feature Detection / Progressive {Enhancement / Graceful Degredation}  ##
-
-I would like to support this, but only after the library design has
-stablized somewhat.
-
-Until then there's no support for it whatever. Keep your target
-audience in mind when deciding what features to target. VTEs generally
-ingore escape sequences they don't understand, but not always.
-
-If you're trying to build a low-level OS tool, don't assume much more
-than what the linux console provides. If you're building something
-more developer focused, you can probably assume something on par with
-iTerm2. End users generally rely on the default terminal emulator, and
-are probably the hardest to support.

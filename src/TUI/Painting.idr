@@ -91,9 +91,11 @@ ClipMask = List Rect
 
 ||| A context for drawing to the terminal.
 |||
-||| The context provides two drawing layers. Default is the top-most
-||| layer, and is always drawn completely. The Masked layer is used to
-||| implement clipped drawing regions, as its name would suggest.
+||| The context provides two drawing layers. `content` is the top-most
+||| layer, and is always drawn completely, and always drawn last. The
+||| `masked` layer is used to implement clipped drawing, as its name
+||| would suggest, and is actually drawn first so that it can be
+||| masked off.
 export
 record Context a where
   constructor C
@@ -153,11 +155,10 @@ present screen (C masked mask content value) = do
   putStr $ fastConcat $ toList content
   pure value
 
-||| Move the given context to the mask layer.
-|||
 ||| This is the internal clipping function which merely shifts the
 ||| image to the clipping layer. It does not clear the contents of the
-||| clipping rectangle. Client code should use `clip` instead.
+||| clipping rectangle. Client code should use `clip` instead, and so
+||| this function is deliberately private.
 clip_ : Rect -> Context a -> Context a
 clip_ r (C masked mask ops v) = C (masked ++ ops) (r :: mask) [<] v
 
