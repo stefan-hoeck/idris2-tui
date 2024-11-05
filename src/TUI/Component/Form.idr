@@ -128,12 +128,12 @@ View FocusState where
     submitState : State
     submitState = case self of
       Submit => Focused -- XXX: show as disabled when form is invalid
-      _      => Normal
+      _      => (demoteFocused state)
 
     cancelState : State
     cancelState = case self of
       Cancel => Focused
-      _      => Normal
+      _      => (demoteFocused state)
 
 ||| A form is a heterogenous container of labeled components.
 |||
@@ -166,20 +166,16 @@ implementation
   -> {tys : Vect (S k) Type} -- see note below
   -> View (Form tys)
 where
-  size self = size @{vertical} self.fields
+  size self = vunion (size @{vertical} self.fields) (size self.focus)
   paint state window self = do
-    let contents = shrink window
-    vline (contents.nw.shiftRight (self.split + 1)) contents.size.height
-    case state of
-      Focused => box window
-      _       => pure ()
-    ignore $ packTop @{vertical} fieldsState contents self.fields
-    ignore $ packBottom state contents self.focus
+    vline (window.nw.shiftRight (self.split + 1)) window.height
+    ignore $ packTop @{vertical} fieldsState window self.fields
+    ignore $ packBottom state window self.focus
   where
     fieldsState : State
     fieldsState = case self.focus of
-      Edit   => Focused
-      _      => Normal
+      Edit   => state
+      _      => demoteFocused state
 
 ||| Advance to the next component.
 |||

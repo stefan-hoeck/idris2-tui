@@ -33,6 +33,10 @@ module TUI.Component.Modal
 
 
 import TUI.Component
+import TUI.Painting
+import TUI.Layout
+import Data.List
+import Data.List.Quantifiers
 
 
 %default total
@@ -132,6 +136,139 @@ where
 |||
 ||| It paints only the top-most component into the given window.
 export
-View (Modal t) where
+[topmost] View (Modal t) where
   size self = size self.component
   paint state window self = paint state window self.component
+
+||| This view nests modals visually using `inset`.
+|||
+||| The root component gets the full window. Modals are inset inside
+||| inside the parent like popup dialogs.
+|||
+||| To use this, pass `@{inset}` in your call to `runComponent`,
+||| `runView`, `paint`, `component`, etc.
+export
+[inset] View (Modal t) where
+  size self = union (size self.component) (sizeStack self.stack)
+    where
+      sizeStack : Stack _ _ -> Area
+      sizeStack [] = empty
+      sizeStack (merge :: xs) = union (size $ merge Nothing) (sizeStack xs)
+
+  paint state window self = case self of
+    (M component []) => paint state window component
+    (M component stack) => do
+      window <- paintStack window stack
+      fill ' ' window
+      paint state window component
+      border (grow window)
+  where
+    paintStack : Rect -> Stack _ _ -> Context Rect
+    paintStack window [] = pure window
+    paintStack window [merge] = do
+      paint Disabled window (merge Nothing)
+      pure (inset window (MkArea 3 3))
+    paintStack window (merge :: ys) = do
+      window <- paintStack window ys
+      fill ' ' window
+      paint Disabled window (merge Nothing)
+      sgr [SetStyle Faint]
+      border (grow window)
+      sgr [Reset]
+      pure (inset window (MkArea 3 3))
+
+||| Centers modals within the parent viewport at their requested size.
+|||
+||| The root component gets the full window.
+|||
+||| To use this, pass `@{inset}` in your call to `runComponent`,
+||| `runView`, `paint`, `component`, etc.
+export
+[centered] View (Modal t) where
+  size self = union (size self.component) (sizeStack self.stack)
+    where
+      sizeStack : Stack _ _ -> Area
+      sizeStack [] = empty
+      sizeStack (merge :: xs) = union (size $ merge Nothing) (sizeStack xs)
+
+  paint state window self = case self of
+    (M component []) => paint state window component
+    (M component stack) => do
+      paintStack window stack
+      let modal = (size component).centerIn window
+      fill ' ' modal
+      paint state modal component
+      border (grow modal)
+  where
+    paintStack : Rect -> Stack _ _ -> Context ()
+    paintStack window [] = pure ()
+    paintStack window [merge] = do
+      paint Disabled window (merge Nothing)
+    paintStack window (merge :: ys) = do
+      paintStack window ys
+      let view = (merge Nothing)
+      let modal = (size view).centerIn window
+      fill ' ' modal
+      paint Disabled modal view
+      border (grow modal)
+
+||| This view stacks modals vertically, from the top.
+|||
+||| To use this, pass `@{fromTop}` in your call to `runComponent`,
+||| `runView`, `paint`, `component`, etc.
+export
+[fromTop] View (Modal t) where
+  size self = union (size self.component) (sizeStack self.stack)
+    where
+      sizeStack : Stack _ _ -> Area
+      sizeStack [] = empty
+      sizeStack (merge :: xs) = hunion (size $ merge Nothing) (sizeStack xs)
+
+  paint state window self = case self of
+    (M component []) => paint state window component
+    (M component stack) => do
+      window <- paintStack window stack
+      window <- packTop state window HRule
+      paint state window component
+  where
+    paintStack : Rect -> Stack _ _ -> Context Rect
+    paintStack window [] = pure window
+    paintStack window [merge] = do
+      packTop Disabled window (merge Nothing)
+    paintStack window (merge :: ys) = do
+      window <- paintStack window ys
+      window <- packTop Disabled window HRule
+      packTop Disabled window (merge Nothing)
+
+||| This view stacks modals horizontally, from the left.
+|||
+||| To use this, pass `@{fromLeft}` in your call to `runComponent`,
+||| `runView`, `paint`, `component`, etc.
+export
+[fromLeft] View (Modal t) where
+  size self = union (size self.component) (sizeStack self.stack)
+    where
+      sizeStack : Stack _ _ -> Area
+      sizeStack [] = empty
+      sizeStack (merge :: xs) = vunion (size $ merge Nothing) (sizeStack xs)
+
+  paint state window self = case self of
+    (M component []) => paint state window component
+    (M component stack) => do
+      window <- paintStack window stack
+      window <- packLeft state window VRule
+      ignore $ packLeft state window component
+  where
+    paintStack : Rect -> Stack _ _ -> Context Rect
+    paintStack window [] = pure window
+    paintStack window [merge] = do
+      packLeft Disabled window (merge Nothing)
+    paintStack window (merge :: ys) = do
+      window <- paintStack window ys
+      window <- packLeft Disabled window VRule
+      packLeft Disabled window (merge Nothing)
+
+||| The default view should be the inset view.
+export %hint
+defaultView : View (Modal t)
+defaultView = inset

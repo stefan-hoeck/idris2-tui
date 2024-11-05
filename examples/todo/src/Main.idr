@@ -138,7 +138,7 @@ covering
 run : String -> IO ()
 run path = do
   items <- fromFile path
-  case !(runComponent !getDefault (todoList path (fromMaybe [] items))) of
+  case !(runComponent @{centered} !getDefault (todoList path (fromMaybe [] items))) of
     Nothing => pure ()
     Just items => toFile path items
 

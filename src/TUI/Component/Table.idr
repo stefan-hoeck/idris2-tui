@@ -158,6 +158,7 @@ export
         ignore $ paintRow state window cols cursor
         pure $ snd $ window.splitTop 1
       Nothing => pure window
+    sgr [Reset]
     ignore $ paintRows (demoteFocused state) window cols right
   where
     rowHeight : All Component tys -> Nat
@@ -184,7 +185,7 @@ export
       -> Context Rect
     paintRow state window [] [] = pure window
     paintRow {i} state window (c :: cs) (col :: cols) = do
-      let (l, r) = window.splitLeft c
+      let (l, r) = window.splitLeft (c + 1)
       paint (if (i == finToNat self.column) then state else demoteFocused state) l col
       paintRow {i = S i} state r cs cols
 

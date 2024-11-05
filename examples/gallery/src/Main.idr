@@ -30,51 +30,55 @@ testMenu : Component String
 testMenu = Spinner.fromChoice ["foo", "bar", "baz"] "bar"
 
 ||| A component that represents a user-chosen value
-data TestModal = Default String | Selected String String
+record TestModal where
+  constructor TM
+  label     : String
+  selection : Maybe String
+
+(.helper) : TestModal -> String
+(.helper) self = "Selection: \{fromMaybe "" self.selection}"
 
 ||| Implement show for the component (and thereby View)
-Show TestModal where
-  show (Default label)    = "\{label}\nNo Selection"
-  show (Selected label c) = "\{label}\n\{c}"
+View TestModal where
+  size self = hunion (size @{show} self.label) (size self.helper)
+  paint state window self = do
+    window <- packTop (demoteFocused state) window self.label
+    ignore $  packTop state window self.helper
 
 ||| Construct a TestModal component
 testModal2 : Component String
-testModal2 = component @{show} (Default header) onKey unavailable
+testModal2 = component (TM header Nothing) onKey unavailable
   where
     header : String
     header = "Modal 2: (a): Baz, (b): Quux, (c): From Spinner"
 
-    onSelect : Maybe String -> TestModal
-    onSelect Nothing  = Default  header
-    onSelect (Just s) = Selected header s
+    onSelect : Maybe String -> TestModal -> TestModal
+    onSelect selection = {selection := selection}
 
     onKey : Component.Handler TestModal String Key
-    onKey (Alpha 'a') _              = yield "Baz"
-    onKey (Alpha 'b') _              = yield "Quux"
-    onKey (Alpha 'c') s              = push testMenu onSelect
-    onKey Enter       s@(Default _)  = ignore
-    onKey Enter       (Selected _ s) = yield s
-    onKey Escape      _              = exit
-    onKey _           _              = ignore
+    onKey (Alpha 'a') _  = yield "Baz"
+    onKey (Alpha 'b') _  = yield "Quux"
+    onKey (Alpha 'c') s  = push testMenu ((flip onSelect) s)
+    onKey Enter       s  = exitIf s.selection
+    onKey Escape      _  = exit
+    onKey _           _  = ignore
 
 testModal1 : Component String
-testModal1 = component @{show} (Default header) onKey unavailable
+testModal1 = component (TM header Nothing) onKey unavailable
   where
     header : String
     header = "Modal 1: (a): Foo, (b): Bar, (c): From Modal 2"
 
-    onSelect : Maybe String -> TestModal
-    onSelect Nothing = Default header
-    onSelect (Just s) = Selected header s
+    onSelect : Maybe String -> TestModal -> TestModal
+    onSelect selection = {selection := selection}
 
     onKey : Component.Handler TestModal String Key
-    onKey (Alpha 'a') _              = yield "Foo"
-    onKey (Alpha 'b') _              = yield "Bar"
-    onKey (Alpha 'c') s              = push testModal2 onSelect
-    onKey Enter       s@(Default _)  = ignore
-    onKey Enter       (Selected _ s) = yield s
-    onKey Escape      _              = exit
-    onKey _           _              = ignore
+    onKey (Alpha 'a') _ = yield "Foo"
+    onKey (Alpha 'b') _ = yield "Bar"
+    onKey (Alpha 'c') s = push testModal2 ((flip onSelect) s)
+    onKey Enter       s = exitIf s.selection
+    onKey Escape      _ = exit
+    onKey _           _ = ignore
 
 testForm : Component (HVect [String, Nat, Integer, Double, String])
 testForm = ariaForm [
@@ -88,9 +92,18 @@ testForm = ariaForm [
 partial export
 gallery : IO ()
 gallery = do
-  case !(runComponent !getDefault testForm) of
+  case !(runComponent @{!vimpl} !getDefault testForm) of
     Nothing => putStrLn "User Canceled"
     Just choice => putStrLn $ "User selected: \{show choice}"
+where
+  vimpl : IO (View (Modal _))
+  vimpl = case !getArgs of
+    [_, "topmost"] => pure topmost
+    [_, "inset"] => pure inset
+    [_, "fromTop"] => pure fromTop
+    [_, "fromLeft"] => pure fromLeft
+    [_, "centered"] => pure centered
+    _ => pure inset
 
 ||| Application entry point
 partial

@@ -33,4 +33,4 @@ shopt -s checkwinsize; (:;:)
 export LINES="${LINES}"
 export COLUMNS="${COLUMNS}"
 
-./build/exec/gallery
+./build/exec/gallery "$@"

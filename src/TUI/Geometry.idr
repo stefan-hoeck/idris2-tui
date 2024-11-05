@@ -142,7 +142,7 @@ namespace Area
   ||| Combine two areas to yield an area that contains both
   export
   union : Area -> Area -> Area
-  union a b = MkArea (max a.width a.width) (max a.height b.height)
+  union a b = MkArea (max a.width b.width) (max a.height b.height)
 
   ||| Pack areas vertically
   export
@@ -163,6 +163,13 @@ namespace Area
   a - b = MkArea {
     width = (a.width `diff` b.width),
     height = (a.height `diff` b.height)
+  }
+
+  export
+  (/) : Area -> Nat -> Area
+  a / b = MkArea {
+    width = (a.width `div` b),
+    height = (a.height `div` b)
   }
 
 ||| Associated definitiosn for `Rect`.
@@ -313,6 +320,41 @@ namespace Rect
   (.shiftUp) : Rect -> Nat -> Rect
   (.shiftUp) self offset = { pos := (self.pos - (MkArea 0 offset)) } self
 
+  public export
+  (.contains) : Rect -> Rect -> Bool
+  (.contains) self r =
+    case (
+      self.n <= r.n,
+      self.s >= r.s,
+      self.e >= r.e,
+      self.w <= r.w
+    ) of
+      (True, True, True, True) => True
+      _ => False
+
+  public export
+  (.center) : Rect -> Pos
+  (.center) r = r.nw + (r.size / 2)
+
+public export
+(.contains) : Rect -> Area -> Bool
+(.contains) self a = case (self.width >= a.width, self.height >= a.height) of
+  (True, True) => True
+  _ => False
+
+
+public export
+(.centerOn) : Area -> Pos -> Rect
+(.centerOn) area center = MkRect nw area
+  where
+    nw : Pos
+    nw = center - (area / 2)
+
+public export
+(.centerIn) : Area -> Rect -> Rect
+(.centerIn) self window = case window.contains self of
+  False => window
+  True  => self.centerOn window.center
 
 ||| A common default size of terminal window.
 export
@@ -327,7 +369,7 @@ screen : IO Rect
 screen = do
   width  <- parseEnv "COLUMNS" 80 parsePositive
   height <- parseEnv  "LINES"  24 parsePositive
-  pure $ MkRect origin $ MkArea width height
+  pure $ MkRect origin $ MkArea (width `minus` 1) (height `minus` 1)
 where
   parseEnv : String -> a -> (String -> Maybe a) -> IO a
   parseEnv key def parse = case !(getEnv key) of
@@ -342,10 +384,23 @@ inset self offset = {
   size := self.size - (2 * offset)
 } self
 
+||| shrink the rectangle by the given size
+export
+outset : Rect -> Area -> Rect
+outset self offset = {
+  pos  := self.pos - offset,
+  size := self.size + (2 * offset)
+} self
+
 ||| Inset a rectangle uniformly by one row and column.
 export
 shrink : Rect -> Rect
 shrink r = inset r $ MkArea 1 1
+
+||| Inset a rectangle uniformly by one row and column.
+export
+grow : Rect -> Rect
+grow r = outset r $ MkArea 1 1
 
 
 namespace Test
@@ -394,3 +449,23 @@ namespace Test
     : ((.splitBottom) TestWindow 1)
     = (MkRect Pos.origin (MkArea 80 23), MkRect (MkPos 1 24) (MkArea 80 1))
   testSplitBottom = Refl
+
+  testContains1
+    : ((.contains) TestWindow TestWindow) = True
+  testContains1 = Refl
+
+  testContains2
+    : ((.contains) TestWindow ((.shiftRight) TestWindow 1)) = False
+  testContains2 = Refl
+
+  testContains3
+    : ((.contains) TestWindow ((.shiftRight) (shrink TestWindow) 1)) = True
+  testContains3 = Refl
+
+  testContains4
+    : ((.contains) TestWindow ((.shiftDown) TestWindow 1)) = False
+  testContains4 = Refl
+
+  testContains5
+    : ((.contains) TestWindow ((.shiftDown) (shrink TestWindow) 1)) = True
+  testContains5 = Refl
