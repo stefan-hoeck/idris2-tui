@@ -35,7 +35,7 @@
 ||| These routines operate on an opaque `Context` which theoretically
 ||| tracks the draw state, allowing for scope-based mangement of draw
 ||| state (position, color, font, style, etc). In practice everything
-||| is written directly to stdout. Baby steps.
+||| is written (almost) directly to stdout.
 |||
 ||| I would like to support client code which looks like:
 |||
@@ -48,11 +48,12 @@
 |||      ...
 ||| ```
 |||
-||| In certain situations, the rightward drift is a small price to pay
-||| for clear scoping of draw operations.
+||| For now, you're responsible for keeping track of terminal
+||| attributes.
 |||
-||| There is no support for *clipping*, and so there's no support for
-||| scrolling. It's still early days.
+||| Everything in this file, but clipping in particular, relies on
+||| synchronized updates to avoid crazy flicker and other strange
+||| artifacts.
 module TUI.Painting
 
 
@@ -72,14 +73,15 @@ import public TUI.Geometry
 |||
 ||| We try not to make too many assumptions about how the terminal
 ||| does this, as it can vary. But, in general, concatenating two
-||| strings will combine the two images.
+||| strings will combine the two images (though not perhaps in the way
+||| you expect).
 |||
 ||| As an optimization, we represent lists of string fragments, which
 ||| we merge with `fastConcat` prior to rendering.
 0 Image : Type
 Image = SnocList String
 
-||| Represent the regions to mask off from the clipped image plane
+||| Represent the regions to mask off from the clipped image plane.
 0 ClipMask : Type
 ClipMask = List Rect
 
@@ -151,10 +153,11 @@ present screen (C masked mask content value) = do
   putStr $ fastConcat $ toList content
   pure value
 
-||| Apply the given context within the mask layer.
+||| Move the given context to the mask layer.
 |||
-||| This is the internal clipping function which does not first clear
-||| the contents of the clipping rectangle.
+||| This is the internal clipping function which merely shifts the
+||| image to the clipping layer. It does not clear the contents of the
+||| clipping rectangle. Client code should use `clip` instead.
 clip_ : Rect -> Context a -> Context a
 clip_ r (C masked mask ops v) = C (masked ++ ops) (r :: mask) [<] v
 
@@ -167,27 +170,33 @@ export
 Functor Context where
   map f = {value $= f}
 
-||| Combines the images and mask of both functors.
+||| Sequencing two contexts combines their images layers and masks.
 export
 Applicative Context where
   pure x = C [<] [] [<] x
   f <*> (C masked mask content value) = C {
-    masked = masked ++ f.masked,
-    mask = mask ++ f.mask,
+    -- hopefully this is the right order in which to concatenate
+    -- images for the clipping region, it doesn't matter, since it's
+    -- logically a union.
+    masked  = masked  ++ f.masked,
+    mask    = mask    ++ f.mask,
     content = content ++ f.content,
-    value = f.value value
+    value   = f.value value
   }
 
-||| Merges the images and mask of both functors.
+||| Bind for Context merges the image layers and masks.
 export
 Monad Context where
   (C masked mask content value) >>= f =
     let next = f value
     in C {
-      masked = masked ++ next.masked,
-      mask = mask ++ next.mask,
+    -- hopefully this is the right order in which to concatenate
+    -- images for the clipping region, it doesn't matter, since it's
+    -- logically a union.
+      masked  = masked  ++ next.masked,
+      mask    = mask    ++ next.mask,
       content = content ++ next.content,
-      value = next.value
+      value   = next.value
     }
 
 ||| Debug printf for paint operations
@@ -300,12 +309,12 @@ namespace Box
     putAt r.sw SW
     putAt r.se SE
 
-  ||| Apply the given context within the mask layer.
+  ||| Draw the given context, but clipped to `window`.
   |||
   ||| This will:
-  ||| - clear the window in the clipping area
-  ||| - add the clipping rectangle to the clipping mask
-  ||| - paint the original context to the clipping layer
+  ||| - erase the `window` in the clipping area,
+  ||| - add the `window` to the clipping mask,
+  ||| - paint the original context into the clipping layer.
   export
   clip : Rect -> Context a -> Context a
   clip window ctx = clip_ window $ do
