@@ -200,7 +200,7 @@ MainLoop (InputShim [Key]) where
     loop handlers state = do
       beginSyncUpdate
       clearScreen
-      present $ do
+      present (!screen).size $ do
         -- all drawing operations now live in the `Context` monad,
         -- so they must be nested under the `present` IO action.
         moveTo origin

@@ -96,11 +96,11 @@ View TextInput where
   paint Focused rect self = do
     showTextAt rect.nw $ kcap $ self.chars.left
     reverseVideo
-    cheat $ putStr $ case self.chars.right of
+    putStr $ case self.chars.right of
       [] => " "
       x :: _ => singleton x
     unreverseVideo
-    cheat $ putStr $ pack $ tail self.chars.right
+    putStr $ pack $ tail self.chars.right
 
 ||| Implement Component for TextInput.
 export
