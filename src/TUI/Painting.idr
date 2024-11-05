@@ -120,7 +120,7 @@ putChar c = putStr $ singleton c
 clearMasked : Area -> ClipMask -> IO ()
 clearMasked _      []   = pure ()
 clearMasked window mask = do
-  -- reset all characters
+  -- reset all character attributes.
   putStr $ escapeSGR [Reset]
   -- write a blank character to any cell that is masked off.  we have
   -- to do this without the benefit of any abstractions defined here,
@@ -143,10 +143,6 @@ clearMasked window mask = do
   putStr $ eraseScreen End
 
 ||| Paint the context to stdout.
-|||
-||| Draws the complete masked layer.
-||| Erases the masked areas.
-||| Draw the content layer.
 export
 present : Area -> Context a -> IO a
 present screen (C masked mask content value) = do
@@ -171,14 +167,14 @@ export
 Functor Context where
   map f = {value $= f}
 
-||| Sequencing two contexts combines their images layers and masks.
+||| Sequencing two contexts combines their image layers and masks.
 export
 Applicative Context where
   pure x = C [<] [] [<] x
   f <*> (C masked mask content value) = C {
-    -- hopefully this is the right order in which to concatenate
-    -- images for the clipping region, it doesn't matter, since it's
-    -- logically a union.
+    -- Hopefully, this is the right order in which to concatenate the
+    -- image layers. The mask is a set union, so the order doesn't
+    -- matter.
     masked  = masked  ++ f.masked,
     mask    = mask    ++ f.mask,
     content = content ++ f.content,
@@ -191,14 +187,18 @@ Monad Context where
   (C masked mask content value) >>= f =
     let next = f value
     in C {
-    -- hopefully this is the right order in which to concatenate
-    -- images for the clipping region, it doesn't matter, since it's
-    -- logically a union.
+    -- Hopefully, this is the right order in which to concatenate the
+    -- image layers. The mask is a set union, so the order doesn't
+    -- matter.
       masked  = masked  ++ next.masked,
       mask    = mask    ++ next.mask,
       content = content ++ next.content,
       value   = next.value
     }
+
+-------------------------------------------------------------------------------
+-- Drawing Routines which operate on the Context
+-------------------------------------------------------------------------------
 
 ||| Debug printf for paint operations
 export
@@ -318,7 +318,7 @@ namespace Box
   ||| - paint the original context into the clipping layer.
   export
   clip : Rect -> Context a -> Context a
-  clip window ctx = clip_ window $ do
+    clip window ctx = clip_ window $ do
     fill ' ' window
     ctx
 

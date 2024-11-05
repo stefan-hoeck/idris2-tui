@@ -69,19 +69,6 @@ provides three mainloop implementations:
 - `InputShim`: decodes events as JSON records sent via stdin.
 - `Default`: chooses between `Base` and `InputShim` at runtime.
 
-### Async Events ###
-
-Both `Base` and `InputShim` (and therefore `Default`) block reading on
-stdin.
-
-A MainLoop built on top of `idris2-linux` is certainly possible, and
-would allow for a non-blocking event loop, which would be useful for a
-variety of reasons.
-
-However, until the `Component` library supports events of arbitrary
-type, there isn't much of a point in having an async event loop, as
-there's no way to deliver such events to these components.
-
 ### ANSI Key Sequences ###
 
 One aspect of event handling I know how to support is ANSI key
@@ -157,10 +144,9 @@ lines. Remember, drawing order matters. Use this to your advanage.
 
 ## Layout ##
 
-The `Layout` module provides a family of functions for aranging
-`View`s on screen. These rely on `View`s correctly reporting their
-`size`, so be sure and test your `View` implementations against these
-functions.
+The `Layout` module provides a family of functions for arranging
+`View`s on screen. This is the easy way to create responsive-ish
+designs.
 
 ## Components ##
 

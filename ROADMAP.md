@@ -43,10 +43,15 @@ For now, if you want to send a literal escape, you must press escape
 twice. This behavior will change as soon as I support the kitty
 protocol, as I find it rather irritating.
 
-Each breaking change will signal a point release.
+## No Async Events ##
 
-When the full protocol is supported (including key report mode), I
-will call it 1.0.
+Both `Base` and `InputShim` (and therefore `Default`) block reading on
+stdin. This means it's not (yet) possible to have animated interfaces,
+or games.
+
+A MainLoop built on top of `idris2-linux` is certainly possible, and
+would allow for a non-blocking event loop, which would be useful for a
+variety of reasons.
 
 ## Feature Detection
 
@@ -76,10 +81,13 @@ demos on github.io.
 # Road Map
 
 Here's a rough priority list, subject to change. Development of v0.1
-is still ongoing.
+is still ongoing. Until v1.0 is reached, each minor version signals
+breaking changes. After each release, bugfixes and non-breaking
+changes may be backported to point releases.
 
 - v0.1
   - continue developing ampii closely with idris-tui.
+  - non-blocking mainloop (for games).
   - set up CI github actions.
   - pipeline to generate animated gifs from included examples.
 - v0.2
@@ -96,4 +104,3 @@ is still ongoing.
   - correctly calculate string column widths.
   - browser compatibility shim
 	- demos hosted on github pages.
-
