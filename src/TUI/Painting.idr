@@ -318,7 +318,7 @@ namespace Box
   ||| - paint the original context into the clipping layer.
   export
   clip : Rect -> Context a -> Context a
-    clip window ctx = clip_ window $ do
+  clip window ctx = clip_ window $ do
     fill ' ' window
     ctx
 
