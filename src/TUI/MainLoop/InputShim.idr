@@ -176,7 +176,7 @@ handleEvent (Here  x)  state (h :: hs) = h x state
 handleEvent (There xs) state (h :: hs) = handleEvent xs state hs
 
 export covering
-MainLoop (InputShim [Key]) where
+MainLoop (InputShim [Key]) Key where
   runRaw self onKey render init = do
     -- input-shim.py must put the terminal in raw mode
     putStrLn ""

@@ -60,6 +60,6 @@ getDefault = do
       "Invalid MainLoop: \{show wtf}: give one of \"base\" or \"input\""
 
 export covering
-MainLoop Default where
+MainLoop Default Key where
   runRaw (Left b) = runRaw b
   runRaw (Right is) = runRaw is

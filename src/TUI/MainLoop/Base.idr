@@ -36,6 +36,7 @@ module TUI.MainLoop.Base
 
 import Data.IORef
 import System
+import System.Concurrency
 import System.File.Process
 import System.File.ReadWrite
 import System.File.Virtual
@@ -60,8 +61,9 @@ namespace Base
   base : Base
   base = ()
 
+
 export covering
-MainLoop Base where
+MainLoop Base Key where
   runRaw self onKey render init = do
     Right _ <- enableRawMode
             | Left _ => die "Couldn't put terminal in raw mode."

@@ -83,5 +83,9 @@ namespace Result
 
 ||| A function to update application state in response to an event.
 public export
-0 Handler : Type -> Type -> Type -> Type
+0 Handler
+  :  (stateT : Type)
+  -> (valueT : Type)
+  -> (eventT : Type)
+  -> Type
 Handler stateT valueT eventT = eventT -> stateT -> Result stateT valueT
