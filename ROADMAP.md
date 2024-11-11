@@ -26,14 +26,6 @@ there are various ways you can fudge sizing if you need to. The
 passthrough-oriented design should be a bit more robust to issues
 around this than if we relied on buffering.
 
-## Event Types are Hard Coded
-
-The existing event types are hard-coded into the library mainloop and
-input shim.
-
-This must wait until I can figure out the best way to generalize event
-handling without breaking other features of the API that I enjoy.
-
 ## <a name="kbd">Keyboard Input
 
 I plan to support this standard for [unambigous keyboard
@@ -92,7 +84,6 @@ changes may be backported to point releases.
   - pipeline to generate animated gifs from included examples.
 - v0.2
   - full support for all keys (breaking changes to Key type).
-  - Component will support user-defined events (breaking change).
   - scrub API for bad names
 	- favor `(.methods)` when appropriate (`window.splitLeft 1` over
       `splitLeft window 1`.
