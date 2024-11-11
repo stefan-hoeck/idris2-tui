@@ -88,7 +88,7 @@ todoList path items = vlist {
   onKey = onKey
 } where
   ||| Update the selected list item description via a modal TextInput.
-  editSelected : VList Item -> IO $ Response (VList Item) (List Item)
+  editSelected : VList Item -> IO $ Response Key (VList Item) (List Item)
   editSelected self = case self.selected of
     Nothing => ignore
     Just item => push (textInput item.description) (onMerge item)

@@ -225,8 +225,8 @@ where
   onMerge merge result = {rows := updateSelected (merge result)} self
 
   handleResponse
-    :  Response self.Selected (index self.column tys)
-    -> IO (Response (Table tys) (List (All Maybe tys)))
+    :  Response Key self.Selected (index self.column tys)
+    -> IO (Response Key (Table tys) (List (All Maybe tys)))
   handleResponse (Continue x) = update $ {rows := updateSelected !x} self
   handleResponse (Yield _   ) = update $ next self
   handleResponse (Exit      ) = exit

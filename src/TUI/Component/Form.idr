@@ -232,7 +232,7 @@ where
   onMerge : (Maybe a -> FocusRing tys) -> Maybe a -> Form tys
   onMerge merge result = {fields := merge result} self
 
-  handleEdit : IO $ Response (Form tys) (HVect tys)
+  handleEdit : IO $ Response Key (Form tys) (HVect tys)
   handleEdit = case !(handleSelected key self.fields) of
     Continue state => update $ {fields := !state} self
     Yield _        => update $ next self
@@ -240,7 +240,7 @@ where
     Push top merge => push top $ onMerge merge
 
   ||| validate form fields
-  onSubmit : IO $ Response (Form tys) (HVect tys)
+  onSubmit : IO $ Response Key (Form tys) (HVect tys)
   onSubmit = case allIsJust self.fields.values of
     Nothing     => ignore
     Just values => yield values

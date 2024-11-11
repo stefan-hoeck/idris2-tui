@@ -172,7 +172,7 @@ Supported Double where
   zero            = 0
 
 ||| Handle a supported keypress.
-handleChar : Supported a => Char -> Numeric a -> IO $ Response (Numeric a) a
+handleChar : Supported a => Char -> Numeric a -> IO $ Response Key (Numeric a) a
 handleChar char self = case charToInput {a = a} char of
   Nothing => ignore
   Just i  => update $ insert i self

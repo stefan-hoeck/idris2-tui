@@ -46,7 +46,7 @@ import public TUI.Key
 |||
 ||| Note: this type is forward-declared, because mutual blocks do not
 ||| work with records, owing to a bug in Idris.
-public export Response : Type -> Type -> Type
+public export data Response : Type -> Type -> Type -> Type
 
 ||| A function which handles a key event in a component.
 |||
@@ -72,15 +72,13 @@ record Component eventT valueT where
 -- implementations for forward-declared types
 
 public export
-data Response' eventT stateT valueT
+data Response eventT stateT valueT
   = Continue (IO stateT)
   | Yield valueT
   | Exit
   | Push (Component eventT a) (Maybe a -> stateT)
 
-Response stateT valueT = Response' Key stateT valueT
-
-Handler stateT valueT eventT = eventT -> stateT -> IO $ Response' eventT stateT valueT
+Handler stateT valueT eventT = eventT -> stateT -> IO $ Response eventT stateT valueT
 
 ||| Get the value from the component, if it is available.
 export
@@ -104,38 +102,38 @@ namespace ComponentDSL
 
   ||| A generic response: update with the given IO action.
   export
-  continue : IO stateT -> IO (Response' _ stateT _)
+  continue : IO stateT -> IO (Response _ stateT _)
   continue state = pure $ Continue $ state
 
   ||| A generic response: update with the given value.
   export
-  update : stateT -> IO (Response' _ stateT _)
+  update : stateT -> IO (Response _ stateT _)
   update state = pure $ Continue $ pure state
 
   ||| A generic response: yield given value to the parent, or exit.
   export
-  yield : valueT -> IO (Response' _ _ valueT)
+  yield : valueT -> IO (Response _ _ valueT)
   yield value = pure $ Yield value
 
   ||| A generic response: exit.
   export
-  exit : IO (Response' _ _ _)
+  exit : IO (Response _ _ _)
   exit = pure $ Exit
 
   ||| A generic response: yield or exit, depending on argument.
   export
-  exitWith : Maybe valueT -> IO (Response' _ _ valueT)
+  exitWith : Maybe valueT -> IO (Response _ _ valueT)
   exitWith Nothing  = exit
   exitWith (Just v) = yield v
 
   ||| A generic response: do nothing.
   export
-  ignore : {auto self : stateT} -> IO (Response' _ stateT _)
+  ignore : {auto self : stateT} -> IO (Response _ stateT _)
   ignore = update self
 
   ||| A generic response: yield if value is `Just`, ignore if nothing
   export
-  exitIf : {auto self : stateT} -> Maybe valueT -> IO (Response' _ stateT valueT)
+  exitIf : {auto self : stateT} -> Maybe valueT -> IO (Response _ stateT valueT)
   exitIf Nothing  = ignore
   exitIf (Just v) = yield v
 
@@ -148,7 +146,7 @@ namespace ComponentDSL
     :  {0 eventT : Type}
     -> (top   : Component eventT topT)
     -> (merge : Maybe topT -> stateT)
-    -> IO (Response' eventT stateT valueT)
+    -> IO (Response eventT stateT valueT)
   push top merge = pure $ Push top merge
 
   ||| A getter function which always returns Nothing
@@ -203,7 +201,7 @@ namespace User
     -> Type
     -> Type
   Handler events stateT valueT eventT =
-    eventT -> stateT -> IO $ Response' (HSum events) stateT valueT
+    eventT -> stateT -> IO $ Response (HSum events) stateT valueT
 
   ||| Turn a list of handlers into a single handler over a set of
   ||| events.
@@ -219,7 +217,7 @@ namespace User
         :  All (Handler events stateT valueT) a
         -> HSum a
         -> stateT
-        -> IO $ Response' (HSum events) stateT valueT
+        -> IO $ Response (HSum events) stateT valueT
       go (h :: _ ) (Here  e) s = h e s
       go (_ :: hs) (There e) s = go hs e s
 

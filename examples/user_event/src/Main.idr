@@ -54,8 +54,6 @@ View UserEventDemo where
     legend3 = "<Esc> to cancel."
 
 ||| This shows how to create a component which responds to a user event.
-|||
-||| This uses `component'` instead of `component`.
 userEventDemo : Pos -> Component (HSum [Counter, Key]) UserEventDemo
 userEventDemo pos = component {
   state   = (MkUser pos 0),
