@@ -221,6 +221,10 @@ namespace User
       go (h :: _ ) (Here  e) s = h e s
       go (_ :: hs) (There e) s = go hs e s
 
+  export
+  unhandled : (0 eventT : Type) -> User.Handler stateT valueT eventT
+  unhandled _ event self = ignore
+
 ||| Take a `Component _ a` to a `Component _ b` via `f`.
 |||
 ||| This is useful for specializing library components to
