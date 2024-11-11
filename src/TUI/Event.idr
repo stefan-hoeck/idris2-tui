@@ -46,8 +46,8 @@ import public JSON
 import JSON.Derive
 import TUI.DFA
 import Data.List
-import Data.List.Quantifiers
-import Data.List.Quantifiers.Extra
+import public Data.List.Quantifiers
+import public Data.List.Quantifiers.Extra
 
 %default total
 %language ElabReflection

@@ -181,9 +181,9 @@ where
 export
 component'
   : View stateT
-  => (state   : stateT)
-  -> (handler : Component.Handler stateT valueT eventT)
-  -> (get     : stateT -> Maybe valueT)
+  => (state    : stateT)
+  -> (handler  : Component.Handler stateT valueT eventT)
+  -> (get      : stateT -> Maybe valueT)
   -> Component eventT valueT
 component' init handler get = MkComponent {
   State = stateT,
@@ -205,6 +205,31 @@ component
   -> Component Key valueT
 component = component'
 
+public export
+0 EventHandler
+  :  List Type
+  -> Type
+  -> Type
+  -> Type
+  -> Type
+EventHandler events stateT valueT eventT =
+  eventT -> stateT -> IO $ Response' (HSum events) stateT valueT
+
+export
+union
+  :  {0 events : List Type}
+  -> {0 stateT, valueT : Type}
+  -> All (EventHandler events stateT valueT) events
+  -> Component.Handler stateT valueT (HSum events)
+union handlers event state = go handlers event state
+  where
+    go
+      :  All (EventHandler events stateT valueT) a
+      -> HSum a
+      -> stateT
+      -> IO $ Response' (HSum events) stateT valueT
+    go (h :: _ ) (Here  e) s = h e s
+    go (_ :: hs) (There e) s = go hs e s
 
 ||| Take a `Component _ a` to a `Component _ b` via `f`.
 |||

@@ -1,32 +1,40 @@
 module Main
 
 
-import Data.List
-import Data.List.Quantifiers
-import Data.List.Quantifiers.Extra
 import Derive.Prelude
 import TUI
-import TUI.Geometry
 import TUI.MainLoop
 import TUI.MainLoop.InputShim
 import JSON.Derive
---import System
---import System.File
 
 
 %default total
 %language ElabReflection
 
-data CounterEvent = Inc | Reset
-%runElab derive "CounterEvent" [Eq, Ord, Show, FromJSON, ToJSON]
 
-record Custom where
-  constructor MkCustom
+||| This is the user-defined event type.
+|||
+||| To satisfy the requirements of `InputShim`, it must implement
+||| `FromJSON`.
+data Counter
+  = Inc
+  | Reset
+%runElab derive "Counter" [FromJSON]
+
+||| The demo state consists of a cursor position and a count.
+|||
+||| The cursor position is updated via the keyboard, as usual. The
+||| count is updated via the user timer event defined above.
+record UserEventDemo where
+  constructor MkUser
   pos : Pos
   count : Nat
-%runElab derive "Custom" [Show]
+%runElab derive "UserEventDemo" [Show]
 
-View Custom where
+||| We implement view for this type as per usual.
+|||
+||| Basically, we show the count at the current cursor position.
+View UserEventDemo where
   size _ = MkArea 1 1
   paint state window self = do
     reverseVideo
@@ -37,28 +45,22 @@ View Custom where
     legend : String
     legend = "Arrow Keys Move Cursor. <Esc> to Exit."
 
-partial export
-main : IO ()
-main = do
-  window <- screen
-  case !(runView !mainLoop handler $ state window.center) of
-    Nothing => putStrLn "User Canceled"
-    Just choice => putStrLn $ "User selected: \{show choice}"
-where
-  mainLoop : IO (InputShim [CounterEvent, Key])
-  mainLoop = do
-    keyboard <- inputShim
-    counter  <- raw {eventT = CounterEvent} "Counter"
-    pure $ keyboard.addEvent counter
-
-  state : Pos -> Custom
-  state pos = MkCustom pos 0
-
-  onCounter : Event.Handler Custom Custom CounterEvent
+||| This shows how to create a component which responds to a user event.
+|||
+||| This uses `component'` instead of `component`.
+userEventDemo : Pos -> Component (HSum [Counter, Key]) UserEventDemo
+userEventDemo pos = component' {
+  state = (MkUser pos 0),
+  handler = union [onCounter, onKey],
+  get = Just . id
+} where
+  ||| EventHandler is just like `Component.Handler`, except that it
+  ||| needs to be aware of the full set of events that we handle
+  onCounter : EventHandler [Counter, Key] UserEventDemo UserEventDemo Counter
   onCounter Inc   self = update $ {count $= S} self
   onCounter Reset self = update $ {count $= S} self
 
-  onKey : Event.Handler Custom Custom Key
+  onKey : EventHandler [Counter, Key] UserEventDemo UserEventDemo Key
   onKey Up     self = update $ { pos := self.pos.shiftUp    1} self
   onKey Down   self = update $ { pos := self.pos.shiftDown  1} self
   onKey Left   self = update $ { pos := self.pos.shiftLeft  1} self
@@ -67,6 +69,16 @@ where
   onKey Escape self = exit
   onKey _      self = ignore
 
-  handler : Event.Handler Custom Custom (HSum [CounterEvent, Key])
-  handler = union [onCounter, onKey]
-
+partial export
+main : IO ()
+main = do
+  window   <- screen
+  -- start with the basic event loop
+  keyboard <- inputShim
+  -- then append our custom event source to it.
+  counter  <- raw {eventT = Counter} "Counter"
+  let mainLoop = keyboard.addEvent counter
+  -- now we can run as we would any stock component.
+  case !(runComponent mainLoop $ userEventDemo window.center) of
+    Nothing => putStrLn "User Canceled"
+    Just choice => putStrLn $ "User selected: \{show choice}"

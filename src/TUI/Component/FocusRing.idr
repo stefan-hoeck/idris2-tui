@@ -154,7 +154,7 @@ namespace Views
     paint state window self = do
       ignore $ recurse 0 window self.items
     where
-      recurse : Fin (S k) -> Rect -> All (Component Key) a -> Context Rect
+      recurse : Fin (S k) -> Rect -> Data.Vect.Quantifiers.All.All (Component e) a -> Context Rect
       recurse i window []        = pure $ window
       recurse i window (x :: xs) = recurse (finS i) !(packTop focus window x) xs
       where
@@ -173,7 +173,7 @@ namespace Views
     paint state window self = do
       ignore $ recurse 0 window self.items
     where
-      recurse : Fin (S k) -> Rect -> All (Component Key) a -> Context Rect
+      recurse : Fin (S k) -> Rect -> Data.Vect.Quantifiers.All.All (Component e) a -> Context Rect
       recurse i window []        = pure $ window
       recurse i window (x :: xs) = recurse (finS i) !(packLeft focus window x) xs
       where
