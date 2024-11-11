@@ -1,4 +1,4 @@
-package custom_event
+package user_event
 version = 0.1.0
 authors = "emdash"
 -- maintainers =
@@ -23,7 +23,7 @@ depends = contrib
 main = Main
 
 -- name of executable
-executable = "custom_event"
+executable = "user_event"
 -- opts =
 sourcedir = "src"
 -- builddir =

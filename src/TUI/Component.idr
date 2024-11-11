@@ -179,13 +179,13 @@ where
 |||
 ||| This will become the new definition of component once we finish migrating.
 export
-component'
+component
   : View stateT
   => (state    : stateT)
   -> (handler  : Component.Handler stateT valueT eventT)
   -> (get      : stateT -> Maybe valueT)
   -> Component eventT valueT
-component' init handler get = MkComponent {
+component init handler get = MkComponent {
   State = stateT,
   state = init,
   handler = handler,
@@ -193,43 +193,35 @@ component' init handler get = MkComponent {
   vimpl = %search
 }
 
-||| Construct a component by supplying both view and key handler.
-|||
-||| This is just here for now until we finish migrating.
-export
-component
-  : View stateT
-  => (state   : stateT)
-  -> (handler : Component.Handler stateT valueT Key)
-  -> (get     : stateT -> Maybe valueT)
-  -> Component Key valueT
-component = component'
+namespace User
+  ||| Type alias for handlers that accept user-defined events.
+  public export
+  0 Handler
+    :  List Type
+    -> Type
+    -> Type
+    -> Type
+    -> Type
+  Handler events stateT valueT eventT =
+    eventT -> stateT -> IO $ Response' (HSum events) stateT valueT
 
-public export
-0 EventHandler
-  :  List Type
-  -> Type
-  -> Type
-  -> Type
-  -> Type
-EventHandler events stateT valueT eventT =
-  eventT -> stateT -> IO $ Response' (HSum events) stateT valueT
-
-export
-union
-  :  {0 events : List Type}
-  -> {0 stateT, valueT : Type}
-  -> All (EventHandler events stateT valueT) events
-  -> Component.Handler stateT valueT (HSum events)
-union handlers event state = go handlers event state
-  where
-    go
-      :  All (EventHandler events stateT valueT) a
-      -> HSum a
-      -> stateT
-      -> IO $ Response' (HSum events) stateT valueT
-    go (h :: _ ) (Here  e) s = h e s
-    go (_ :: hs) (There e) s = go hs e s
+  ||| Turn a list of handlers into a single handler over a set of
+  ||| events.
+  export
+  union
+    :  {0 events : List Type}
+    -> {0 stateT, valueT : Type}
+    -> All (User.Handler events stateT valueT) events
+    -> Component.Handler stateT valueT (HSum events)
+  union handlers event state = go handlers event state
+    where
+      go
+        :  All (Handler events stateT valueT) a
+        -> HSum a
+        -> stateT
+        -> IO $ Response' (HSum events) stateT valueT
+      go (h :: _ ) (Here  e) s = h e s
+      go (_ :: hs) (There e) s = go hs e s
 
 ||| Take a `Component _ a` to a `Component _ b` via `f`.
 |||
@@ -246,7 +238,7 @@ union handlers event state = go handlers event state
 |||    inputMM length = (.mm) <$> numeric (length.convertTo MilliMeters)
 export
 Functor (Component eventT) where
-  map f wrapped = component' @{wrapped.vimpl} wrapped.state handle get
+  map f wrapped = component @{wrapped.vimpl} wrapped.state handle get
     where
       get : wrapped.State -> Maybe b
       get self = f <$> wrapped.get self
@@ -271,7 +263,7 @@ Functor (Component eventT) where
 ||| XXX: does this correspond to a prelude interface?
 export
 mapMaybe : (a -> Maybe b) -> Component e a -> Component e b
-mapMaybe f wrapped = component' @{wrapped.vimpl} wrapped.state handle get
+mapMaybe f wrapped = component @{wrapped.vimpl} wrapped.state handle get
   where
     get : wrapped.State -> Maybe b
     get self = join $ f <$> wrapped.get self

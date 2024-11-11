@@ -40,27 +40,35 @@ View UserEventDemo where
     reverseVideo
     showTextAt self.pos $ show self.count
     sgr [Reset]
-    ignore $ packBottom Normal window legend
+    window <- packBottom Normal window legend3
+    window <- packBottom Normal window legend2
+    ignore $  packBottom Normal window legend1
   where
-    legend : String
-    legend = "Arrow Keys Move Cursor. <Esc> to Exit."
+    legend1 : String
+    legend1 = "Arrow Keys to Move Cursor."
+
+    legend2 : String
+    legend2 = "<Enter> to accept values."
+
+    legend3 : String
+    legend3 = "<Esc> to cancel."
 
 ||| This shows how to create a component which responds to a user event.
 |||
 ||| This uses `component'` instead of `component`.
 userEventDemo : Pos -> Component (HSum [Counter, Key]) UserEventDemo
-userEventDemo pos = component' {
-  state = (MkUser pos 0),
+userEventDemo pos = component {
+  state   = (MkUser pos 0),
   handler = union [onCounter, onKey],
-  get = Just . id
+  get     = Just . id
 } where
-  ||| EventHandler is just like `Component.Handler`, except that it
-  ||| needs to be aware of the full set of events that we handle
-  onCounter : EventHandler [Counter, Key] UserEventDemo UserEventDemo Counter
+  ||| EventHandler is just like `Component.Handler`, but it works with
+  ||| `union` to allow combining different event handler types.
+  onCounter : User.Handler [Counter, Key] UserEventDemo UserEventDemo Counter
   onCounter Inc   self = update $ {count $= S} self
   onCounter Reset self = update $ {count $= S} self
 
-  onKey : EventHandler [Counter, Key] UserEventDemo UserEventDemo Key
+  onKey : User.Handler [Counter, Key] UserEventDemo UserEventDemo Key
   onKey Up     self = update $ { pos := self.pos.shiftUp    1} self
   onKey Down   self = update $ { pos := self.pos.shiftDown  1} self
   onKey Left   self = update $ { pos := self.pos.shiftLeft  1} self

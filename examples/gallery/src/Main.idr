@@ -96,7 +96,7 @@ gallery = do
     Nothing => putStrLn "User Canceled"
     Just choice => putStrLn $ "User selected: \{show choice}"
 where
-  vimpl : IO (View (Modal _))
+  vimpl : IO (View (Modal _ _))
   vimpl = case !getArgs of
     [_, "topmost"] => pure topmost
     [_, "inset"] => pure inset
