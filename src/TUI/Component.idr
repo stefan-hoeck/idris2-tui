@@ -176,6 +176,8 @@ where
   updateInner merge result = {state := merge result} self
 
 ||| Construct a component by supplying both view and key handler.
+|||
+||| This will become the new definition of component once we finish migrating.
 export
 component'
   : View stateT
@@ -192,6 +194,8 @@ component' init handler get = MkComponent {
 }
 
 ||| Construct a component by supplying both view and key handler.
+|||
+||| This is just here for now until we finish migrating.
 export
 component
   : View stateT
@@ -202,7 +206,7 @@ component
 component = component'
 
 
-||| Take a `Component a` to a `Component b` via `f`.
+||| Take a `Component _ a` to a `Component _ b` via `f`.
 |||
 ||| This is useful for specializing library components to
 ||| application-specific types.

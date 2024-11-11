@@ -96,9 +96,9 @@ runView mainloop onEvent init = runRaw {
 ||| Like runView, but for `Component`.
 export covering
 runComponent
-  :  (vimpl : View (Modal valueT))
-  => MainLoop ml Key
+  :  (vimpl : View (Modal eventT valueT))
+  => MainLoop ml eventT
   => (mainloop : ml)
-  -> (self : Component Key valueT)
+  -> (self : Component eventT valueT)
   -> IO (Maybe valueT)
 runComponent mainloop self = runView @{vimpl} mainloop handle (root self)
