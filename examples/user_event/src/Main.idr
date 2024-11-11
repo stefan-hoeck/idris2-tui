@@ -33,7 +33,8 @@ record UserEventDemo where
 
 ||| We implement view for this type as per usual.
 |||
-||| Basically, we show the count at the current cursor position.
+||| Basically, we show the count at the current cursor position, along
+||| with some help text.
 View UserEventDemo where
   size _ = MkArea 1 1
   paint state window self = do
@@ -53,20 +54,29 @@ View UserEventDemo where
     legend3 : String
     legend3 = "<Esc> to cancel."
 
-||| This shows how to create a component which responds to a user event.
+||| This shows how to create a component which responds to a
+||| user-defined event.
+|||
+||| Here, `HSum [Counter, Key]` is the event type.
+|||
+||| `union [onCounter, onKey]` composes two distinct event
+||| handlers.
+|||
+||| When you need to compose event handlers with `Union`, specify the
+||| `User.Handler` type instead of `Component.Handler`.
 userEventDemo : Pos -> Component (HSum [Counter, Key]) UserEventDemo
 userEventDemo pos = component {
   state   = (MkUser pos 0),
   handler = union [onCounter, onKey],
   get     = Just . id
 } where
-  ||| EventHandler is just like `Component.Handler`, but it works with
-  ||| `union` to allow combining different event handler types.
-  onCounter : User.Handler [Counter, Key] UserEventDemo UserEventDemo Counter
+  ||| Handle counter events.
+  onCounter : User.Handler UserEventDemo UserEventDemo Counter
   onCounter Inc   self = update $ {count $= S} self
   onCounter Reset self = update $ {count $= S} self
 
-  onKey : User.Handler [Counter, Key] UserEventDemo UserEventDemo Key
+  ||| Handle key presses.
+  onKey : User.Handler UserEventDemo UserEventDemo Key
   onKey Up     self = update $ { pos := self.pos.shiftUp    1} self
   onKey Down   self = update $ { pos := self.pos.shiftDown  1} self
   onKey Left   self = update $ { pos := self.pos.shiftLeft  1} self

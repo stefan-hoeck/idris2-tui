@@ -195,12 +195,12 @@ namespace User
   ||| Type alias for handlers that accept user-defined events.
   public export
   0 Handler
-    :  List Type
+    :  {0 events : List Type}
     -> Type
     -> Type
     -> Type
     -> Type
-  Handler events stateT valueT eventT =
+  Handler {events} stateT valueT eventT =
     eventT -> stateT -> IO $ Response (HSum events) stateT valueT
 
   ||| Turn a list of handlers into a single handler over a set of
@@ -209,12 +209,12 @@ namespace User
   union
     :  {0 events : List Type}
     -> {0 stateT, valueT : Type}
-    -> All (User.Handler events stateT valueT) events
+    -> All (User.Handler {events} stateT valueT) events
     -> Component.Handler stateT valueT (HSum events)
   union handlers event state = go handlers event state
     where
       go
-        :  All (Handler events stateT valueT) a
+        :  All (Handler {events} stateT valueT) a
         -> HSum a
         -> stateT
         -> IO $ Response (HSum events) stateT valueT
