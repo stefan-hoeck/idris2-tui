@@ -45,7 +45,9 @@ import Data.IORef
 import public JSON
 import JSON.Derive
 import TUI.DFA
-
+import Data.List
+import Data.List.Quantifiers
+import Data.List.Quantifiers.Extra
 
 %default total
 %language ElabReflection
@@ -89,3 +91,23 @@ public export
   -> (eventT : Type)
   -> Type
 Handler stateT valueT eventT = eventT -> stateT -> Result stateT valueT
+
+||| Combine handlers into a single handler for an HSum.
+public export
+union
+  :  {0 events : List Type}
+  -> {0 stateT, valueT : Type}
+  -> (handlers : All (Handler stateT valueT) events)
+  -> Handler stateT valueT (HSum events)
+union (handler :: handlers) (Here event)  = handler event
+union (_       :: handlers) (There event) = union handlers event
+
+||| A generic handler which ignores the incoming event.
+public export
+always : (stateT -> Result stateT valueT) -> Handler stateT valueT eventT
+always doThis _ state = doThis state
+
+||| A generic handler which will not modify application state.
+public export
+unhandled : Handler stateT valueT eventT
+unhandled = always (\x => ignore)

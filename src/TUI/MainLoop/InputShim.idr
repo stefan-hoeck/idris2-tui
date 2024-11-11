@@ -111,7 +111,19 @@ export
 onAnsiKey : IO (EventSource Key)
 onAnsiKey = decoded "Stdin" ansiDecoder
 
-||| A MainLoop which handles only Ansi keys
+||| Add an event source to an InputShim mainloop.
+export
+(.addEvent)
+  :  {0 events : List Type}
+  -> InputShim events
+  -> EventSource eventT
+  -> InputShim (eventT :: events)
+(.addEvent) self source = {sources $= (source ::)} self
+
+||| A MainLoop which handles only ANSI key sequences.
+|||
+||| You must use at least this value as your initial mainloop. You can
+||| add custom events to it via (.addEvent) defined above.
 export
 inputShim : IO (InputShim [Key])
 inputShim = pure $ MkInputShim [!onAnsiKey]
@@ -162,28 +174,15 @@ where
         Accept y => pure $ Left $ "Toplevel event decoder in final state!"
         Reject err => pure $ Left "Decode error: \{err}"
 
-||| Try to handle an event using one of the given handlers.
-|||
-||| The event must be covered by one of the handlers in the list.
-export
-handleEvent
-  :  {0 stateT, valueT : Type}
-  -> HSum events
-  -> stateT
-  -> All (Handler stateT valueT) events
-  -> Result stateT valueT
-handleEvent (Here  x)  state (h :: hs) = h x state
-handleEvent (There xs) state (h :: hs) = handleEvent xs state hs
-
 export covering
-MainLoop (InputShim [Key]) Key where
-  runRaw self onKey render init = do
+{events : List Type} -> MainLoop (InputShim events) (HSum events) where
+  runRaw self onEvent render init = do
     -- input-shim.py must put the terminal in raw mode
     putStrLn ""
     altScreen True
     cursor False
     saveCursor
-    ret <- loop [onKey] init
+    ret <- loop self.sources init
     cleanup
     pure ret
   where
@@ -196,8 +195,8 @@ MainLoop (InputShim [Key]) Key where
       altScreen False
 
     ||| The actual main loop
-    loop : All (Handler stateT valueT) [Key] -> stateT -> IO (Maybe valueT)
-    loop handlers state = do
+    loop : All EventSource events -> stateT -> IO (Maybe valueT)
+    loop sources state = do
       beginSyncUpdate
       clearScreen
       present (!screen).size $ do
@@ -209,9 +208,15 @@ MainLoop (InputShim [Key]) Key where
       fflush stdout
       next <- getLine
       case !(decodeNext next self.sources) of
-        Right event => case !(handleEvent event state handlers) of
-          Left  next => loop handlers next
+        Right event => case !(onEvent event state) of
+          Left  next => loop sources next
           Right res  => pure res
         Left err     => do
           ignore $ fPutStrLn stderr $ show err
-          loop handlers state
+          loop sources state
+
+
+||| Special case for a singleton set of events.
+export covering
+{eventT : Type} -> MainLoop (InputShim [eventT]) eventT where
+  runRaw self handler render init = runRaw self (union [handler]) render init
