@@ -55,7 +55,7 @@ export
 record Table (tys : Vect k Type) where
   constructor MkTable
   headers : Vect k String
-  rows    : Zipper (All Component tys)
+  rows    : Zipper (All (Component Key) tys)
   column  : Fin k
 
 export
@@ -64,7 +64,7 @@ export
   -> {tys  : Vect k Type}
   -> (self : Table tys)
   -> Type
-(.Selected) {tys} self = Component (index self.column tys)
+(.Selected) {tys} self = Component Key (index self.column tys)
 
 ||| Get the selected value.
 export
@@ -106,7 +106,7 @@ prev self = case self.column of
   _  => goLeft self
 
 export
-insert : All Component tys -> Table tys -> Table tys
+insert : All (Component Key) tys -> Table tys -> Table tys
 insert row = {rows $= insert row}
 
 export
@@ -118,11 +118,11 @@ export
 tabulate
   :  {k : Nat}
   -> {tys : Vect k Type}
-  -> List (All Component tys)
+  -> List (All (Component Key) tys)
   -> Vect k Nat
 tabulate rows = foldl colWidths (replicate k 0) rows
   where
-    colWidths : Vect k Nat -> All Component tys -> Vect k Nat
+    colWidths : Vect k Nat -> All (Component Key) tys -> Vect k Nat
     colWidths accum components =
       zipWith max accum $ forget $ mapProperty (width . size) components
 
@@ -141,7 +141,7 @@ export
         h     := foldl (+) 2 $ rowHeight <$> items
     in MkArea w h
   where
-    rowHeight : All Component tys -> Nat
+    rowHeight : All (Component Key) tys -> Nat
     rowHeight row = reduceAll max (height . size) 0 row
 
   paint state window self = do
@@ -161,7 +161,7 @@ export
     sgr [Reset]
     ignore $ paintRows (demoteFocused state) window cols right
   where
-    rowHeight : All Component tys -> Nat
+    rowHeight : All (Component Key) tys -> Nat
     rowHeight row = reduceAll max (height . size) 0 row
 
     paintHeaders
@@ -181,7 +181,7 @@ export
       -> Rect
       -> Vect j Nat
       -> {ts : Vect j Type}
-      -> All Component ts
+      -> All (Component Key) ts
       -> Context Rect
     paintRow state window [] [] = pure window
     paintRow {i} state window (c :: cs) (col :: cols) = do
@@ -193,7 +193,7 @@ export
       :  State
       -> Rect
       -> Vect k Nat
-      -> List (All Component tys)
+      -> List (All (Component Key) tys)
       -> Context Rect
     paintRows state window cols [] = pure window
     paintRows state window cols (row :: rows) = do
@@ -216,7 +216,7 @@ handleSelected key self = case self.selected of
   Nothing => ignore
   Just s  => handleResponse !(handle key s)
 where
-  updateSelected : self.Selected -> Zipper (All Component tys)
+  updateSelected : self.Selected -> Zipper (All (Component Key) tys)
   updateSelected item = case cursor self.rows of
     Nothing => self.rows
     Just _ => update (replaceAt self.column item) self.rows
@@ -238,9 +238,9 @@ table
   :  {k      : Nat}
   -> {tys    : Vect (S k) Type}
   -> (labels : Vect (S k) String)
-  -> (rows   : List (All Component tys))
+  -> (rows   : List (All (Component Key) tys))
   -> (onKey  : Component.Handler (Table tys) (List (All Maybe tys)) Key)
-  -> Component (List (All Maybe tys))
+  -> Component Key (List (All Maybe tys))
 table labels rows onKey = component {
   state = MkTable labels (fromList rows) 0,
   handler = onKey,

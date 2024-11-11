@@ -81,7 +81,7 @@ View Item where
 |||
 ||| The path is used as the list header, so we know which file we're
 ||| editing.
-todoList : String -> List Item -> Component (List Item)
+todoList : String -> List Item -> Component Key (List Item)
 todoList path items = vlist {
   header = path,
   items = items,

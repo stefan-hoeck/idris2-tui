@@ -114,7 +114,7 @@ handle Escape    self = exit
 handle _         self = ignore
 
 export
-textInput : String -> Component String
+textInput : String -> Component Key String
 textInput string = component (fromString string) handle (Just . toString)
 
 ||| Make `String` `Editable` via `TextInput`

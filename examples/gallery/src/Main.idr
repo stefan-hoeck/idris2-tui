@@ -13,7 +13,7 @@ import System.File
 
 
 ||| A simple counter
-testCounter : Component Nat
+testCounter : Component Key Nat
 testCounter = component @{show} 0 onKey unavailable
   where
     onKey : Component.Handler Nat Nat Key
@@ -26,7 +26,7 @@ testCounter = component @{show} 0 onKey unavailable
     onKey _     _   = ignore
 
 ||| A simple menu
-testMenu : Component String
+testMenu : Component Key String
 testMenu = Spinner.fromChoice ["foo", "bar", "baz"] "bar"
 
 ||| A component that represents a user-chosen value
@@ -46,7 +46,7 @@ View TestModal where
     ignore $  packTop state window self.helper
 
 ||| Construct a TestModal component
-testModal2 : Component String
+testModal2 : Component Key String
 testModal2 = component (TM header Nothing) onKey unavailable
   where
     header : String
@@ -63,7 +63,7 @@ testModal2 = component (TM header Nothing) onKey unavailable
     onKey Escape      _  = exit
     onKey _           _  = ignore
 
-testModal1 : Component String
+testModal1 : Component Key String
 testModal1 = component (TM header Nothing) onKey unavailable
   where
     header : String
@@ -80,7 +80,7 @@ testModal1 = component (TM header Nothing) onKey unavailable
     onKey Escape      _ = exit
     onKey _           _ = ignore
 
-testForm : Component (HVect [String, Nat, Integer, Double, String])
+testForm : Component Key (HVect [String, Nat, Integer, Double, String])
 testForm = ariaForm [
   F     "menu"    testMenu,
   F     "Nat"     $ numeric (the Nat 5),

@@ -58,7 +58,7 @@ public export
 data Stack : (top : Type) -> (root : Type) -> Type where
   Nil  : Stack root root
   ||| @merge Function to merge top of the stack with the element beneath.
-  (::) : (merge : Maybe top -> Component a) -> Stack a root -> Stack top root
+  (::) : (merge : Maybe top -> Component Key a) -> Stack a root -> Stack top root
 
 ||| A context for modal interaction.
 |||
@@ -77,7 +77,7 @@ data Stack : (top : Type) -> (root : Type) -> Type where
 public export
 record Modal rootT where
   constructor M
-  component : Component topT
+  component : Component Key topT
   stack : Stack topT rootT
 
 -- we can use `(.topT)` instead, which reads better anyway. `topT`
@@ -101,9 +101,9 @@ pop (M top (merge :: tail))  result = Left $ M (merge result) tail
 
 ||| Push a component into the Modal context, with the merge function.
 push
-  :  Component topT
+  :  Component Key topT
   -> (self : Modal rootT)
-  -> (Maybe topT -> Component self.topT)
+  -> (Maybe topT -> Component Key self.topT)
   -> Modal rootT
 push top self merge = M top (merge :: self.stack)
 
@@ -112,7 +112,7 @@ push top self merge = M top (merge :: self.stack)
 ||| You shouldn't need to call this. It is used by `runComponent` in
 ||| the `MainLoop` to wrap the root component.
 export
-root : Component rootT -> Modal rootT
+root : Component Key rootT -> Modal rootT
 root component = M component []
 
 ||| This is the top-level event handler for a modal context.

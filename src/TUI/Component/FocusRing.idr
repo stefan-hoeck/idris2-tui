@@ -53,7 +53,7 @@ import TUI.Util
 public export
 record FocusRing (tys : Vect k Type) where
   constructor MkFocusRing
-  items     : All Component tys
+  items     : All (Component Key) tys
   selection : Fin k
 
 ||| Get the type of the selection.
@@ -63,7 +63,7 @@ export
   -> {tys  : Vect k Type}
   -> (self : FocusRing tys)
   -> Type
-(.Selected) {tys} self = Component (index self.selection tys)
+(.Selected) {tys} self = Component Key (index self.selection tys)
 
 ||| Get the selected value.
 export
@@ -135,7 +135,7 @@ handleSelected key self = case !(handle key self.selected) of
   Exit       => exit
   Push x f   => push x $ onMerge f
 where
-  updateSelected : self.Selected -> All Component tys
+  updateSelected : self.Selected -> All (Component Key) tys
   updateSelected item = replaceAt self.selection item self.items
 
   onMerge : (Maybe a -> self.Selected) -> Maybe a -> FocusRing tys
@@ -154,7 +154,7 @@ namespace Views
     paint state window self = do
       ignore $ recurse 0 window self.items
     where
-      recurse : Fin (S k) -> Rect -> All Component a -> Context Rect
+      recurse : Fin (S k) -> Rect -> All (Component Key) a -> Context Rect
       recurse i window []        = pure $ window
       recurse i window (x :: xs) = recurse (finS i) !(packTop focus window x) xs
       where
@@ -173,7 +173,7 @@ namespace Views
     paint state window self = do
       ignore $ recurse 0 window self.items
     where
-      recurse : Fin (S k) -> Rect -> All Component a -> Context Rect
+      recurse : Fin (S k) -> Rect -> All (Component Key) a -> Context Rect
       recurse i window []        = pure $ window
       recurse i window (x :: xs) = recurse (finS i) !(packLeft focus window x) xs
       where
@@ -187,7 +187,7 @@ export
 new
   :  {k   : Nat}
   -> {tys : Vect k Type}
-  -> All Component tys
+  -> All (Component Key) tys
   -> Fin k
   -> FocusRing tys
 new components choice = MkFocusRing components choice
@@ -214,10 +214,10 @@ focusRing
   :  {k         : Nat}
   -> {tys       : Vect k Type}
   -> (vimpl     : View (FocusRing tys))
-  => (items     : All Component tys)
+  => (items     : All (Component Key) tys)
   -> (selection : Fin k)
   -> (onKey     : Component.Handler (FocusRing tys) (All Maybe tys) Key)
-  -> Component (All Maybe tys)
+  -> Component Key (All Maybe tys)
 focusRing {vimpl} items selection onKey = component @{vimpl} {
   state   = new items selection,
   handler = onKey,
@@ -244,10 +244,10 @@ export
 vertical
   :  {k         : Nat}
   -> {tys       : Vect (S k) Type}
-  -> (items     : All Component tys)
+  -> (items     : All (Component Key) tys)
   -> (selection : Fin (S k))
   -> (onKey     : Component.Handler (FocusRing tys) (All Maybe tys) Key)
-  -> Component (All Maybe tys)
+  -> Component Key (All Maybe tys)
 vertical = focusRing @{vertical}
 
 ||| Construct a FocusRing component that renders horizontally.
@@ -270,8 +270,8 @@ export
 horizontal
   :  {k         : Nat}
   -> {tys       : Vect (S k) Type}
-  -> (items     : All Component tys)
+  -> (items     : All (Component Key) tys)
   -> (selection : Fin (S k))
   -> (onKey     : Component.Handler (FocusRing tys) (All Maybe tys) Key)
-  -> Component (All Maybe tys)
+  -> Component Key (All Maybe tys)
 horizontal = focusRing @{horizontal}

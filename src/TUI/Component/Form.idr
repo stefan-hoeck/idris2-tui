@@ -54,7 +54,7 @@ public export
 record Field valueT where
   constructor F
   label : String
-  value : Component valueT
+  value : Component Key valueT
 
 ||| Contruct a field using the default component for the given value type.
 |||
@@ -110,7 +110,7 @@ handleField key self = case !(handle key self.value) of
 where
   ||| Some boilerplate:
   ||| Proxy this modal merge back down to the underlying editor.
-  onMerge : (Maybe a -> Component valueT) -> Maybe a -> Field valueT
+  onMerge : (Maybe a -> Component Key valueT) -> Maybe a -> Field valueT
   onMerge merge result = {value := merge result} self
 
 ||| The focus state of a form
@@ -268,7 +268,7 @@ new fields = MkForm (new mkfields 0) maxLabelWidth Edit
     ||| aligns the field content to our split value.
     |||
     ||| Editable is the implementation required for `splitAt` to work.
-    mkfield : Field valueT -> Component valueT
+    mkfield : Field valueT -> Component Key valueT
     mkfield f = component @{splitAt {split = maxLabelWidth}} {
       state   = f,
       handler = handleField,
@@ -276,7 +276,7 @@ new fields = MkForm (new mkfields 0) maxLabelWidth Edit
     }
 
     ||| Convert the input list of fields to a list of components.
-    mkfields : All Component tys
+    mkfields : All (Component Key) tys
     mkfields = mapProperty mkfield fields
 
 ||| Construct a form component that uses ARIA keys for navigation.
@@ -293,10 +293,10 @@ ariaForm
   :  {k : Nat}
   -> {tys : Vect (S k) Type}
   -> (fields : All Field tys)
-  -> Component (HVect tys)
+  -> Component Key (HVect tys)
 ariaForm fields = component {
-  stateT = Form tys,
-  state = new fields,
+  stateT  = Form tys,
+  state   = new fields,
   handler = ariaKeys,
-  get = unavailable -- see note above
+  get     = unavailable -- see note above
 }

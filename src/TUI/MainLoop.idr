@@ -99,6 +99,6 @@ runComponent
   :  (vimpl : View (Modal valueT))
   => MainLoop ml Key
   => (mainloop : ml)
-  -> (self : Component valueT)
+  -> (self : Component Key valueT)
   -> IO (Maybe valueT)
 runComponent mainloop self = runView @{vimpl} mainloop handle (root self)

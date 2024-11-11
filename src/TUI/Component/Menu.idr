@@ -146,7 +146,7 @@ namespace Spinner
     :  View itemT
     => (choices : List itemT)
     -> (choice  : Fin (length choices))
-    -> Component itemT
+    -> Component Key itemT
   spinner {itemT} choices choice = component {
     state   = (new choices choice),
     handler = onKey,
@@ -167,7 +167,7 @@ namespace Spinner
     => (choices  : List itemT)
     -> (choice   : itemT)
     -> {auto 0 has : IsJust (findIndex (choice ==) choices)}
-    -> Component itemT
+    -> Component Key itemT
   fromChoice choices choice {has} = spinner choices index
     where
       index : Fin (length choices)
@@ -181,7 +181,7 @@ namespace Spinner
     => Eq itemT
     => (choices : List itemT)
     -> (choice  : itemT)
-    -> Maybe (Component itemT)
+    -> Maybe (Component Key itemT)
   maybeFromChoice choices choice = spinner {
     choices = choices
   } <$> findIndex (choice ==) choices

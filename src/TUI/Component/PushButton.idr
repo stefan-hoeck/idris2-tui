@@ -42,7 +42,7 @@ export
 record PushButton valueT where
   constructor MkPushButton
   label : String
-  component : Component valueT
+  component : Component Key valueT
   value : Maybe valueT
 
 render : PushButton _ -> String
@@ -63,7 +63,7 @@ handle Enter self = push self.component onMerge
 handle _     self = ignore
 
 export
-pushButton : String -> Component valueT -> Component valueT
+pushButton : String -> Component Key valueT -> Component Key valueT
 pushButton label modal = component {
   state   = (MkPushButton label modal Nothing),
   handler = handle,

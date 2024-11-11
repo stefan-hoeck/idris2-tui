@@ -213,13 +213,10 @@ handle Escape       self = exit
 handle _            self = ignore
 
 export
-numeric : Supported a => a -> Component a
+numeric : Supported a => a -> Component Key a
 numeric value = component (Numeric.fromValue value) handle (.value)
 
 export
-%hint
-editableImpl : Show a => Supported a => Editable a
-editableImpl = MkEditable @{show} {
-  fromValue = numeric,
+Supported a => Editable a where
+  fromValue = numeric
   blank     = numeric zero
-}

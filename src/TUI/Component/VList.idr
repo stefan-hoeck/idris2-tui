@@ -186,7 +186,7 @@ vlist
   => (header :  String)
   -> (items  : List itemT)
   -> (onKey  : Component.Handler (VList itemT) (List itemT) Key)
-  -> Component (List itemT)
+  -> Component Key (List itemT)
 vlist header items onKey = component {
   state   = (fromList header items),
   handler = onKey,
