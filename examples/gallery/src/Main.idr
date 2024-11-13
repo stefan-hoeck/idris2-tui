@@ -12,11 +12,16 @@ import System.File
 %language ElabReflection
 
 
+0 KeyComponent : Type -> Type
+KeyComponent valueT =
+  {0 events : List Type} -> Has Key events => Component (HSum events) valueT
+
+
 ||| A simple counter
-testCounter : Component Key Nat
-testCounter = component @{show} 0 onKey unavailable
+testCounter : KeyComponent Nat
+testCounter = component @{show} 0 (only onKey) unavailable
   where
-    onKey : Component.Handler Nat Nat Key
+    onKey : Single.Handler Nat Nat Key
     onKey Up    cur = update $ cur + 1
     onKey Down  cur = update $ cur `minus` 1
     onKey (Alpha 'i') cur = update $ cur + 1
@@ -26,7 +31,7 @@ testCounter = component @{show} 0 onKey unavailable
     onKey _     _   = ignore
 
 ||| A simple menu
-testMenu : Component Key String
+testMenu : KeyComponent String
 testMenu = Spinner.fromChoice ["foo", "bar", "baz"] "bar"
 
 ||| A component that represents a user-chosen value
@@ -46,8 +51,8 @@ View TestModal where
     ignore $  packTop state window self.helper
 
 ||| Construct a TestModal component
-testModal2 : Component Key String
-testModal2 = component (TM header Nothing) onKey unavailable
+testModal2 : KeyComponent String
+testModal2 = component (TM header Nothing) (only onKey) unavailable
   where
     header : String
     header = "Modal 2: (a): Baz, (b): Quux, (c): From Spinner"
@@ -55,16 +60,16 @@ testModal2 = component (TM header Nothing) onKey unavailable
     onSelect : Maybe String -> TestModal -> TestModal
     onSelect selection = {selection := selection}
 
-    onKey : Component.Handler TestModal String Key
+    onKey : Single.Handler {events} TestModal String Key
     onKey (Alpha 'a') _  = yield "Baz"
     onKey (Alpha 'b') _  = yield "Quux"
-    onKey (Alpha 'c') s  = push testMenu ((flip onSelect) s)
+    onKey (Alpha 'c') s  = push (testMenu {events}) ((flip onSelect) s)
     onKey Enter       s  = exitIf s.selection
     onKey Escape      _  = exit
     onKey _           _  = ignore
 
-testModal1 : Component Key String
-testModal1 = component (TM header Nothing) onKey unavailable
+testModal1 : KeyComponent String
+testModal1 = component (TM header Nothing) (only onKey) unavailable
   where
     header : String
     header = "Modal 1: (a): Foo, (b): Bar, (c): From Modal 2"
@@ -72,15 +77,15 @@ testModal1 = component (TM header Nothing) onKey unavailable
     onSelect : Maybe String -> TestModal -> TestModal
     onSelect selection = {selection := selection}
 
-    onKey : Component.Handler TestModal String Key
+    onKey : Single.Handler {events} TestModal String Key
     onKey (Alpha 'a') _ = yield "Foo"
     onKey (Alpha 'b') _ = yield "Bar"
-    onKey (Alpha 'c') s = push testModal2 ((flip onSelect) s)
+    onKey (Alpha 'c') s = push (testModal2 {events}) ((flip onSelect) s)
     onKey Enter       s = exitIf s.selection
     onKey Escape      _ = exit
     onKey _           _ = ignore
 
-testForm : Component Key (HVect [String, Nat, Integer, Double, String])
+testForm : Component (HSum [Key]) (HVect [String, Nat, Integer, Double, String])
 testForm = ariaForm [
   F     "menu"    testMenu,
   F     "Nat"     $ numeric (the Nat 5),

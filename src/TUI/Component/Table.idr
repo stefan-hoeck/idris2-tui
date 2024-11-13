@@ -50,6 +50,7 @@ import TUI.Component.Numeric
 %default total
 
 
+{-
 ||| A visually-aligned 2D grid of rows and columns.
 export
 record Table (tys : Vect k Type) where

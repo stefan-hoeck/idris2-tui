@@ -182,11 +182,12 @@ where
 ||| Construct a VList as a component with the user-supplied handler.
 export
 vlist
-  :  View itemT
+  :  {0 events : List Type}
+  -> View itemT
   => (header :  String)
   -> (items  : List itemT)
-  -> (onKey  : Component.Handler (VList itemT) (List itemT) Key)
-  -> Component Key (List itemT)
+  -> (onKey  : Component.Handler (VList itemT) (List itemT) (HSum events))
+  -> Component (HSum events) (List itemT)
 vlist header items onKey = component {
   state   = (fromList header items),
   handler = onKey,

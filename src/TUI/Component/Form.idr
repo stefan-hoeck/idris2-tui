@@ -51,10 +51,10 @@ import TUI.Util
 ||| is used. To use the default component for a particular type, see
 ||| the `field` function.
 public export
-record Field valueT where
+record Field {0 events : List Type} valueT where
   constructor F
   label : String
-  value : Component Key valueT
+  value : Component (HSum events) valueT
 
 ||| Contruct a field using the default component for the given value type.
 |||
@@ -65,10 +65,12 @@ record Field valueT where
 ||| A field can be constructed for any type implementing `Editable`.
 export
 field
-  :  Editable valueT
+  :  {0 events : List Type}
+  -> Has Key events
+  => Editable events valueT
   => String
   -> Maybe valueT
-  -> Field valueT
+  -> Field {events} valueT
 field label value = F label $ editable value
 
 ||| Paint a single field.
@@ -101,8 +103,10 @@ paintField split state window self = do
 ||| Handle input for a single field.
 |||
 ||| This just wraps the updates of the underlying `Editor`.
-handleField : Component.Handler (Field valueT) valueT Key
-handleField key self = case !(handle key self.value) of
+handleField
+  :  {0 events : List Type}
+  -> Component.Handler (Field {events} valueT) valueT (HSum events)
+handleField event self = case !(handle event self.value) of
   Continue state => update $ {value := !state} self
   Yield result   => yield result
   Exit           => exit
@@ -110,7 +114,7 @@ handleField key self = case !(handle key self.value) of
 where
   ||| Some boilerplate:
   ||| Proxy this modal merge back down to the underlying editor.
-  onMerge : (Maybe a -> Component Key valueT) -> Maybe a -> Field valueT
+  onMerge : (Maybe a -> Component (HSum events) valueT) -> Maybe a -> Field {events} valueT
   onMerge merge result = {value := merge result} self
 
 ||| The focus state of a form
@@ -145,9 +149,9 @@ View FocusState where
 ||| events pass to the selected form field. When in navigation mode,
 ||| events modify the form itself.
 export
-record Form (tys : Vect k Type) where
+record Form {0 events : List Type} (tys : Vect k Type) where
   constructor MkForm
-  fields : FocusRing tys
+  fields : FocusRing {events} tys
   split  : Nat
   focus  : FocusState
 
@@ -184,10 +188,11 @@ where
 ||| the first component.
 export
 next
-  :  {k : Nat}
+  :  {0 events : List Type}
+  -> {k : Nat}
   -> {tys : Vect (S k) Type}
-  -> Form tys
-  -> Form tys
+  -> Form {events} tys
+  -> Form {events} tys
 next self = case self.focus of
   Edit => if self.fields.selection == last
     then {focus := Cancel} self
@@ -212,9 +217,11 @@ next self = case self.focus of
 ||| XXX: to explore: is this necessary, or does the default handler of
 ||| the new FocusRing component do the job for us?
 ariaKeys
-  :  {k : Nat}
+  :  {0 events : List Type}
+  -> Has Key events
+  => {k : Nat}
   -> {tys : Vect (S k) Type}
-  -> Component.Handler (Form tys) (HVect tys) Key
+  -> Single.Handler {events} (Form {events} tys) (HVect tys) Key
 ariaKeys key self = case (key, self.focus) of
   (Tab,     _)     => update $ next self
   (Escape,  _)     => exit
@@ -229,18 +236,18 @@ where
     Yes _ => (fromJust x ::) <$> validate xs
     No _  => Nothing
 
-  onMerge : (Maybe a -> FocusRing tys) -> Maybe a -> Form tys
+  onMerge : (Maybe a -> FocusRing {events} tys) -> Maybe a -> Form {events} tys
   onMerge merge result = {fields := merge result} self
 
-  handleEdit : IO $ Response Key (Form tys) (HVect tys)
-  handleEdit = case !(handleSelected key self.fields) of
+  handleEdit : IO $ Response (HSum events) (Form {events} tys) (HVect tys)
+  handleEdit = case !(handleSelected {events} (inject key) self.fields) of
     Continue state => update $ {fields := !state} self
     Yield _        => update $ next self
     Exit           => ignore
     Push top merge => push top $ onMerge merge
 
   ||| validate form fields
-  onSubmit : IO $ Response Key (Form tys) (HVect tys)
+  onSubmit : IO $ Response (HSum events) (Form {events} tys) (HVect tys)
   onSubmit = case allIsJust self.fields.values of
     Nothing     => ignore
     Just values => yield values
@@ -252,10 +259,11 @@ where
 ||| @fields   The concrete list of fields
 export
 new
-  :  {k : Nat}
+  :  {0 events : List Type}
+  -> {k : Nat}
   -> {tys : Vect (S k) Type}
-  -> (fields : All Field tys)
-  -> Form tys
+  -> (fields : All (Field {events}) tys)
+  -> Form {events} tys
 new fields = MkForm (new mkfields 0) maxLabelWidth Edit
   where
     ||| Get the character width of the longest label in the form.
@@ -268,7 +276,7 @@ new fields = MkForm (new mkfields 0) maxLabelWidth Edit
     ||| aligns the field content to our split value.
     |||
     ||| Editable is the implementation required for `splitAt` to work.
-    mkfield : Field valueT -> Component Key valueT
+    mkfield : Field {events} valueT -> Component (HSum events) valueT
     mkfield f = component @{splitAt {split = maxLabelWidth}} {
       state   = f,
       handler = handleField,
@@ -276,7 +284,7 @@ new fields = MkForm (new mkfields 0) maxLabelWidth Edit
     }
 
     ||| Convert the input list of fields to a list of components.
-    mkfields : All (Component Key) tys
+    mkfields : All (Component (HSum events)) tys
     mkfields = mapProperty mkfield fields
 
 ||| Construct a form component that uses ARIA keys for navigation.
@@ -290,13 +298,15 @@ new fields = MkForm (new mkfields 0) maxLabelWidth Edit
 ||| via (.value) is not supported at this time.
 export
 ariaForm
-  :  {k : Nat}
+  :  {0 events : List Type}
+  -> Has Key events
+  => {k : Nat}
   -> {tys : Vect (S k) Type}
-  -> (fields : All Field tys)
-  -> Component Key (HVect tys)
+  -> (fields : All (Field {events}) tys)
+  -> Component (HSum events) (HVect tys)
 ariaForm fields = component {
-  stateT  = Form tys,
-  state   = new fields,
-  handler = ariaKeys,
+  stateT  = Form {events} tys,
+  state   = new {events} fields,
+  handler = only ariaKeys,
   get     = unavailable -- see note above
 }

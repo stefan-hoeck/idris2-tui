@@ -71,12 +71,12 @@ userEventDemo pos = component {
   get     = Just . id
 } where
   ||| Handle counter events.
-  onCounter : User.Handler UserEventDemo UserEventDemo Counter
+  onCounter : Single.Handler UserEventDemo UserEventDemo Counter
   onCounter Inc   self = update $ {count $= S} self
   onCounter Reset self = update $ {count $= S} self
 
   ||| Handle key presses.
-  onKey : User.Handler UserEventDemo UserEventDemo Key
+  onKey : Single.Handler UserEventDemo UserEventDemo Key
   onKey Up     self = update $ { pos := self.pos.shiftUp    1} self
   onKey Down   self = update $ { pos := self.pos.shiftDown  1} self
   onKey Left   self = update $ { pos := self.pos.shiftLeft  1} self

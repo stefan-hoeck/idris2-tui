@@ -48,14 +48,32 @@ import public TUI.Key
 ||| work with records, owing to a bug in Idris.
 public export data Response : Type -> Type -> Type -> Type
 
-||| A function which handles a key event in a component.
+||| A function which handles an event in a component.
 |||
-||| This is distinct from `Event.Handler` in that it returns a
-||| `Response` rather than a `Result`.
+||| There are two variants: `Component.Handler` and `User.Handler`.
 |||
 ||| Note: this type alias is forward-declared, because mutual blocks
 ||| do not workw ith records, owing to a bug in Idris.
-public export 0 Handler : Type -> Type -> Type -> Type
+public export
+0 AbstractHandler
+  :  (stateT       : Type)
+  -> (valueT       : Type)
+  -> (globalEventT : Type)
+  -> (localEventT  : Type)
+  -> Type
+
+||| This type is the top-level event handler within a component.
+|||
+||| This is distinct from `Event.Handler` in that it returns a
+||| `Response` rather than a `Result`. Because it is top-level, the
+||| local and and global event types must agree.
+public export
+0 Handler
+  :  (stateT : Type)
+  -> (valueT : Type)
+  -> (eventT : Type)
+  -> Type
+Handler stateT valueT eventT = AbstractHandler stateT valueT eventT eventT
 
 ||| A reusable user-interface element.
 |||
@@ -78,7 +96,8 @@ data Response eventT stateT valueT
   | Exit
   | Push (Component eventT a) (Maybe a -> stateT)
 
-Handler stateT valueT eventT = eventT -> stateT -> IO $ Response eventT stateT valueT
+AbstractHandler stateT valueT globalT localT =
+  localT -> stateT -> IO $ Response globalT stateT valueT
 
 ||| Get the value from the component, if it is available.
 export
@@ -173,56 +192,65 @@ where
   updateInner : (Maybe a -> self.State) -> Maybe a -> Component eventT valueT
   updateInner merge result = {state := merge result} self
 
-||| Construct a component by supplying both view and key handler.
+||| Construct a component.
 |||
-||| This will become the new definition of component once we finish migrating.
+||| This takes a concrete type, view implementation, event handler,
+||| and value accessor, returning an opaque value that reveals only
+||| its value type and event type.
+|||
+||| Component is used extensively in this library to provided
+||| re-usable building blocks for UIs.
 export
 component
-  : View stateT
+  :  (vimpl    : View stateT)
   => (state    : stateT)
   -> (handler  : Component.Handler stateT valueT eventT)
   -> (get      : stateT -> Maybe valueT)
   -> Component eventT valueT
-component init handler get = MkComponent {
+component {vimpl} init handler get = MkComponent {
   State = stateT,
   state = init,
   handler = handler,
   get = get,
-  vimpl = %search
+  vimpl = vimpl
 }
 
-namespace User
-  ||| Type alias for handlers that accept user-defined events.
+namespace Single
+  ||| An event handler for a union of event types.
   public export
   0 Handler
     :  {0 events : List Type}
+    -> (stateT   : Type)
+    -> (valueT   : Type)
+    -> (eventT   : Type)
     -> Type
-    -> Type
-    -> Type
-    -> Type
-  Handler {events} stateT valueT eventT =
-    eventT -> stateT -> IO $ Response (HSum events) stateT valueT
+  Handler stateT valueT eventT = AbstractHandler {
+    stateT       = stateT,
+    valueT       = valueT,
+    globalEventT = HSum events,
+    localEventT  = eventT
+  }
 
-  ||| Compose multiple handlers into a union handler.
+  ||| Compose multiple `Single.Handler`s into a `Component.Handler`.
   export
   union
     :  {0 events : List Type}
     -> {0 stateT, valueT : Type}
-    -> All (User.Handler {events} stateT valueT) events
+    -> All (Single.Handler {events} stateT valueT) events
     -> Component.Handler stateT valueT (HSum events)
   union handlers event state = go handlers event state
     where
+      -- subtle stuff here: globalEventT must always be `HSum events`,
+      -- while `localEventT` must be free to vary, as we recurse.
       go
-        :  All (Handler {events} stateT valueT) a
-        -> HSum a
-        -> stateT
-        -> IO $ Response (HSum events) stateT valueT
+        :  All (Single.Handler {events} stateT valueT) a
+        -> AbstractHandler stateT valueT (HSum events) (HSum a)
       go (h :: _ ) (Here  e) s = h e s
       go (_ :: hs) (There e) s = go hs e s
 
   ||| A dummy handler, for use with `union`.
   export
-  unhandled : (0 eventT : Type) -> User.Handler stateT valueT eventT
+  unhandled : (0 eventT : Type) -> Single.Handler stateT valueT eventT
   unhandled _ event self = ignore
 
   ||| Lift a handler for a single event into a handler for a union.
@@ -230,7 +258,7 @@ namespace User
   only
     :  {0 events : List Type}
     -> Has eventT events
-    => User.Handler {events} stateT valueT eventT
+    => Single.Handler {events} stateT valueT eventT
     -> Component.Handler stateT valueT (HSum events)
   only wrapped event state = case the (Maybe eventT) $ project' event of
     Nothing => ignore

@@ -39,10 +39,10 @@ import TUI.Component
 
 ||| A button that will bring up a modal component when it receives `Enter`
 export
-record PushButton valueT where
+record PushButton {0 events : List Type} valueT where
   constructor MkPushButton
   label : String
-  component : Component Key valueT
+  component : Component (HSum events) valueT
   value : Maybe valueT
 
 render : PushButton _ -> String
@@ -55,17 +55,24 @@ View (PushButton _) where
     showTextAt window.nw $ render self
 
 export
-handle : Component.Handler (PushButton valueT) valueT Key
-handle Enter self = push self.component onMerge
+onKey
+  : {0 events : List Type}
+  -> Single.Handler {events} (PushButton {events} valueT) valueT Key
+onKey Enter self = push self.component onMerge
   where
-    onMerge : Maybe valueT -> PushButton valueT
+    onMerge : Maybe valueT -> PushButton {events} valueT
     onMerge value = {value := value} self
-handle _     self = ignore
+onKey _     self = ignore
 
 export
-pushButton : String -> Component Key valueT -> Component Key valueT
+pushButton
+  :  {0 events : List Type}
+  -> Has Key events
+  => String
+  -> Component (HSum events) valueT
+  -> Component (HSum events) valueT
 pushButton label modal = component {
-  state   = (MkPushButton label modal Nothing),
-  handler = handle,
+  state   = MkPushButton label modal Nothing,
+  handler = only onKey,
   get     = (.value)
 }

@@ -131,7 +131,7 @@ namespace Spinner
   |||
   ||| Up / Down cycle through the combinations
   export
-  onKey : Component.Handler (Exclusive itemT) itemT Key
+  onKey : Single.Handler (Exclusive itemT) itemT Key
   onKey Up     self = update $ prev self
   onKey Down   self = update $ next self
   onKey Left   self = exit
@@ -143,13 +143,15 @@ namespace Spinner
   ||| default.
   export
   spinner
-    :  View itemT
+    :  {0 events : List Type}
+    -> Has Key events
+    => View itemT
     => (choices : List itemT)
     -> (choice  : Fin (length choices))
-    -> Component Key itemT
+    -> Component (HSum events) itemT
   spinner {itemT} choices choice = component {
     state   = (new choices choice),
-    handler = onKey,
+    handler = only onKey,
     get     =  Just . (.selected)
   }
 
@@ -162,12 +164,14 @@ namespace Spinner
   ||| function.
   export
   fromChoice
-    :  View itemT
+    :  {0 events : List Type}
+    -> Has Key events
+    => View itemT
     => Eq itemT
     => (choices  : List itemT)
     -> (choice   : itemT)
     -> {auto 0 has : IsJust (findIndex (choice ==) choices)}
-    -> Component Key itemT
+    -> Component (HSum events) itemT
   fromChoice choices choice {has} = spinner choices index
     where
       index : Fin (length choices)
@@ -177,11 +181,13 @@ namespace Spinner
   ||| (returning a Maybe) instead.
   export
   maybeFromChoice
-    :  View itemT
+    :  {0 events : List Type}
+    -> Has Key events
+    => View itemT
     => Eq itemT
     => (choices : List itemT)
     -> (choice  : itemT)
-    -> Maybe (Component Key itemT)
+    -> Maybe (Component (HSum events) itemT)
   maybeFromChoice choices choice = spinner {
     choices = choices
   } <$> findIndex (choice ==) choices

@@ -104,7 +104,7 @@ View TextInput where
 
 ||| Implement Component for TextInput.
 export
-onKey : User.Handler TextInput String Key
+onKey : Single.Handler TextInput String Key
 onKey Left      self = update $ goLeft self
 onKey Right     self = update $ goRight self
 onKey Delete    self = update $ delete self
@@ -121,10 +121,9 @@ textInput
   -> Component (HSum events) String
 textInput string = component (fromString string) (only onKey) (Just . toString)
 
-{-
 ||| Make `String` `Editable` via `TextInput`
 export
-Editable String where
-  fromValue = textInput
-  blank     = textInput ""
+{0 events : List Type} -> Has Key events => Editable events String where
+  fromValue = textInput {events}
+  blank     = textInput {events} ""
 

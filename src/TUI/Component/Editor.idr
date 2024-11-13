@@ -50,15 +50,19 @@ import TUI.Zipper.List
 ||| XXX: this interface may be obsolete with the new component
 ||| arch.
 public export
-interface Editable valueT
+interface Editable (0 events : List Type) valueT | valueT
 where
-  fromValue  : valueT -> Component Key valueT
-  blank      : Component Key valueT
+  fromValue  : valueT -> Component (HSum events) valueT
+  blank      : Component (HSum events) valueT
 
 ||| Construct a component for an editable type.
 |||
 ||| The value may or may not be known.
 export
-editable : Editable valueT => Maybe valueT -> Component Key valueT
+editable
+  :  {0 events : List Type}
+  -> Editable events valueT
+  => Maybe valueT
+  -> Component (HSum events) valueT
 editable Nothing  = blank
 editable (Just v) = fromValue v
