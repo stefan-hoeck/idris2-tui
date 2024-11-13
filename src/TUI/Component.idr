@@ -203,8 +203,7 @@ namespace User
   Handler {events} stateT valueT eventT =
     eventT -> stateT -> IO $ Response (HSum events) stateT valueT
 
-  ||| Turn a list of handlers into a single handler over a set of
-  ||| events.
+  ||| Compose multiple handlers into a union handler.
   export
   union
     :  {0 events : List Type}
@@ -221,9 +220,23 @@ namespace User
       go (h :: _ ) (Here  e) s = h e s
       go (_ :: hs) (There e) s = go hs e s
 
+  ||| A dummy handler, for use with `union`.
   export
   unhandled : (0 eventT : Type) -> User.Handler stateT valueT eventT
   unhandled _ event self = ignore
+
+  ||| Lift a handler for a single event into a handler for a union.
+  export
+  only
+    :  {0 events : List Type}
+    -> Has eventT events
+    => User.Handler {events} stateT valueT eventT
+    -> Component.Handler stateT valueT (HSum events)
+  only wrapped event state = case the (Maybe eventT) $ project' event of
+    Nothing => ignore
+    Just key => wrapped key state
+
+
 
 ||| Take a `Component _ a` to a `Component _ b` via `f`.
 |||
