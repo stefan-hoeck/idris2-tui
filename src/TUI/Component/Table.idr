@@ -50,64 +50,98 @@ import TUI.Component.Numeric
 %default total
 
 
-{-
 ||| A visually-aligned 2D grid of rows and columns.
 export
-record Table (tys : Vect k Type) where
+record Table {0 events : List Type} (tys : Vect k Type) where
   constructor MkTable
   headers : Vect k String
-  rows    : Zipper (All (Component Key) tys)
+  rows    : Zipper (All (Component (HSum events)) tys)
   column  : Fin k
 
 export
 0 (.Selected)
-  :  {k    : Nat}
+  :  {0 events : List Type}
+  -> {k    : Nat}
   -> {tys  : Vect k Type}
   -> (self : Table tys)
   -> Type
-(.Selected) {tys} self = Component Key (index self.column tys)
+(.Selected) {tys} self = Component (HSum events)  (index self.column tys)
 
 ||| Get the selected value.
 export
 (.selected)
-  :  {k    : Nat}
+  :  {0 events : List Type}
+  -> {k    : Nat}
   -> {tys  : Vect k Type}
-  -> (self : Table tys)
-  -> Maybe self.Selected
+  -> (self : Table {events} tys)
+  -> Maybe (self.Selected {events})
 (.selected) self = case cursor self.rows of
   Nothing => Nothing
   Just row => Just $ get self.column row
 
 export
-goLeft : {k: Nat} -> {tys : Vect k Type} -> Table tys -> Table tys
+goLeft
+  :  {0 events : List Type}
+  -> {k : Nat}
+  -> {tys : Vect (S k) Type}
+  -> Table {events} tys
+  -> Table {events} tys
 goLeft = {column $= predS}
 
 export
-goRight : {k: Nat} -> {tys : Vect k Type} -> Table tys -> Table tys
+goRight
+  :  {0 events : List Type}
+  -> {k : Nat}
+  -> {tys : Vect (S k) Type}
+  -> Table {events} tys
+  -> Table {events} tys
 goRight = {column $= finS}
 
 export
-goUp : Table tys -> Table tys
+goUp
+  :  {0 events : List Type}
+  -> {k : Nat}
+  -> {tys : Vect (S k) Type}
+  -> Table {events} tys
+  -> Table {events} tys
 goUp = {rows $= goLeft}
 
 export
-goDown : Table tys -> Table tys
+goDown
+  :  {0 events : List Type}
+  -> {k : Nat}
+  -> {tys : Vect (S k) Type}
+  -> Table {events} tys
+  -> Table {events} tys
 goDown = {rows $= goRight}
 
 export
-next : {k : Nat} -> {tys : Vect (S k) Type} -> Table tys -> Table tys
+next
+  :  {0 events : List Type}
+  -> {k : Nat}
+  -> {tys : Vect (S k) Type}
+  -> Table {events} tys
+  -> Table {events} tys
 next self = case (self.column == last) of
   True  => goRight $ goDown self
   False => goRight self
 
 export
-prev : {k : Nat} -> {tys : Vect (S k) Type} -> Table tys -> Table tys
+prev
+  :  {0 events : List Type}
+  -> {k : Nat}
+  -> {tys : Vect (S k) Type}
+  -> Table {events} tys
+  -> Table {events} tys
 prev self = case self.column of
   FZ => goLeft $ goDown self
   _  => goLeft self
 
 export
-insert : All (Component Key) tys -> Table tys -> Table tys
+insert
+  :  All (Component (HSum events)) tys
+  -> Table {events} tys
+  -> Table {events} tys
 insert row = {rows $= insert row}
 
 export
@@ -119,11 +153,11 @@ export
 tabulate
   :  {k : Nat}
   -> {tys : Vect k Type}
-  -> List (All (Component Key) tys)
+  -> List (All (Component _) tys)
   -> Vect k Nat
 tabulate rows = foldl colWidths (replicate k 0) rows
   where
-    colWidths : Vect k Nat -> All (Component Key) tys -> Vect k Nat
+    colWidths : Vect k Nat -> All (Component _) tys -> Vect k Nat
     colWidths accum components =
       zipWith max accum $ forget $ mapProperty (width . size) components
 
@@ -142,7 +176,7 @@ export
         h     := foldl (+) 2 $ rowHeight <$> items
     in MkArea w h
   where
-    rowHeight : All (Component Key) tys -> Nat
+    rowHeight : All (Component _) tys -> Nat
     rowHeight row = reduceAll max (height . size) 0 row
 
   paint state window self = do
@@ -162,7 +196,7 @@ export
     sgr [Reset]
     ignore $ paintRows (demoteFocused state) window cols right
   where
-    rowHeight : All (Component Key) tys -> Nat
+    rowHeight : All (Component _) tys -> Nat
     rowHeight row = reduceAll max (height . size) 0 row
 
     paintHeaders
@@ -182,7 +216,7 @@ export
       -> Rect
       -> Vect j Nat
       -> {ts : Vect j Type}
-      -> All (Component Key) ts
+      -> All (Component _) ts
       -> Context Rect
     paintRow state window [] [] = pure window
     paintRow {i} state window (c :: cs) (col :: cols) = do
@@ -194,7 +228,7 @@ export
       :  State
       -> Rect
       -> Vect k Nat
-      -> List (All (Component Key) tys)
+      -> List (All (Component _) tys)
       -> Context Rect
     paintRows state window cols [] = pure window
     paintRows state window cols (row :: rows) = do
@@ -210,25 +244,26 @@ export
 ||| If the selected component exits, then the focus ring exits.
 export
 handleSelected
-  :  {k   : Nat}
+  :  {0 events : List Type}
+  -> {k   : Nat}
   -> {tys : Vect (S k) Type}
-  -> Component.Handler (Table tys) (List (All Maybe tys)) Key
-handleSelected key self = case self.selected of
+  -> Component.Handler (Table {events} tys) (List (All Maybe tys)) (HSum events)
+handleSelected event self = case self.selected of
   Nothing => ignore
-  Just s  => handleResponse !(handle key s)
+  Just s  => handleResponse !(handle event s)
 where
-  updateSelected : self.Selected -> Zipper (All (Component Key) tys)
+  updateSelected : (self.Selected {events}) -> Zipper (All (Component (HSum events)) tys)
   updateSelected item = case cursor self.rows of
     Nothing => self.rows
     Just _ => update (replaceAt self.column item) self.rows
 
-  onMerge : (Maybe a -> self.Selected) -> Maybe a -> Table tys
+  onMerge : (Maybe a -> self.Selected {events}) -> Maybe a -> Table {events} tys
   onMerge merge result = {rows := updateSelected (merge result)} self
 
   handleResponse
-    :  Response Key self.Selected (index self.column tys)
-    -> IO (Response Key (Table tys) (List (All Maybe tys)))
-  handleResponse (Continue x) = update $ {rows := updateSelected !x} self
+    :  Response (HSum events) (self.Selected {events}) (index self.column tys)
+    -> IO (Response (HSum events) (Table {events} tys) (List (All Maybe tys)))
+  handleResponse (Continue x) = update $ {rows := (updateSelected !x)} self
   handleResponse (Yield _   ) = update $ next self
   handleResponse (Exit      ) = exit
   handleResponse (Push x f  ) = push x $ onMerge f
@@ -236,14 +271,15 @@ where
 ||| Construct a table component
 export
 table
-  :  {k      : Nat}
-  -> {tys    : Vect (S k) Type}
-  -> (labels : Vect (S k) String)
-  -> (rows   : List (All (Component Key) tys))
-  -> (onKey  : Component.Handler (Table tys) (List (All Maybe tys)) Key)
-  -> Component Key (List (All Maybe tys))
-table labels rows onKey = component {
+  :  {0 events : List Type}
+  -> {k        : Nat}
+  -> {tys      : Vect (S k) Type}
+  -> (labels   : Vect (S k) String)
+  -> (rows     : List (All (Component (HSum events)) tys))
+  -> (handler  : Component.Handler (Table {events} tys) (List (All Maybe tys)) (HSum events))
+  -> Component (HSum events) (List (All Maybe tys))
+table labels rows handler = component {
   state = MkTable labels (fromList rows) 0,
-  handler = onKey,
+  handler = handler,
   get = Just . (.values)
 }
