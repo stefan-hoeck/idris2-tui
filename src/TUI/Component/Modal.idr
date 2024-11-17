@@ -136,7 +136,7 @@ where
 |||
 ||| It paints only the top-most component into the given window.
 export
-[topmost] View (Modal eventT t) where
+[topmost] View (Modal _ t) where
   size self = size self.component
   paint state window self = paint state window self.component
 
@@ -148,7 +148,7 @@ export
 ||| To use this, pass `@{inset}` in your call to `runComponent`,
 ||| `runView`, `paint`, `component`, etc.
 export
-[inset] View (Modal eventT t) where
+[inset] View (Modal _ t) where
   size self = union (size self.component) (sizeStack self.stack)
     where
       sizeStack : Stack _ _ _ -> Area
@@ -184,7 +184,7 @@ export
 ||| To use this, pass `@{inset}` in your call to `runComponent`,
 ||| `runView`, `paint`, `component`, etc.
 export
-[centered] View (Modal eventT t) where
+[centered] View (Modal _ t) where
   size self = union (size self.component) (sizeStack self.stack)
     where
       sizeStack : Stack _ _ _ -> Area
@@ -217,7 +217,7 @@ export
 ||| To use this, pass `@{fromTop}` in your call to `runComponent`,
 ||| `runView`, `paint`, `component`, etc.
 export
-[fromTop] View (Modal eventT t) where
+[fromTop] View (Modal _ t) where
   size self = union (size self.component) (sizeStack self.stack)
     where
       sizeStack : Stack _ _ _ -> Area
@@ -245,7 +245,7 @@ export
 ||| To use this, pass `@{fromLeft}` in your call to `runComponent`,
 ||| `runView`, `paint`, `component`, etc.
 export
-[fromLeft] View (Modal eventT t) where
+[fromLeft] View (Modal _ t) where
   size self = union (size self.component) (sizeStack self.stack)
     where
       sizeStack : Stack _ _ _ -> Area
