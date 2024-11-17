@@ -1,0 +1,24 @@
+[custom.all.tui]
+type   = "local"
+path   = "."
+ipkg   = "tui.ipkg"
+
+[custom.all.gallery]
+type   = "local"
+path   = "examples/gallery/"
+ipkg   = "gallery.ipkg"
+
+[custom.all.scrollclip]
+type   = "local"
+path   = "examples/scrollclip/"
+ipkg   = "scrollclip.ipkg"
+
+[custom.all.todo]
+type   = "local"
+path   = "examples/todo/"
+ipkg   = "todo.ipkg"
+
+[custom.all.user_event]
+type   = "local"
+path   = "examples/user_event/"
+ipkg   = "user_event.ipkg"

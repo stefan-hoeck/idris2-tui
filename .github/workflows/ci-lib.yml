@@ -1,0 +1,40 @@
+---
+name: Build
+
+on:
+  push:
+    branches:
+      - '**'
+    tags:
+      - '**'
+  pull_request:
+    branches:
+      - main
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+
+  build:
+    name: Build the lib with Idris2 HEAD
+    runs-on: ubuntu-latest
+    env:
+      PACK_DIR: /root/.pack
+    strategy:
+      fail-fast: false
+    container: ghcr.io/stefan-hoeck/idris2-pack:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Build lib
+        run: pack build tui
+      - name: Build gallery
+        run: pack build gallery
+      - name: Build scrollclip
+        run: pack build scrollclip
+      - name: Build todo
+        run: pack build todo
+      - name: Build user_event
+        run: pack build user_event
