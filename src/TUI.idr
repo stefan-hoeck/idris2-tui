@@ -41,6 +41,7 @@ import public TUI.Component.Menu
 import public TUI.Component.Numeric
 import public TUI.Component.PushButton
 import public TUI.Component.Modal
+import public TUI.Component.Table
 import public TUI.Component.TextInput
 import public TUI.Component.VList
 import public TUI.Event

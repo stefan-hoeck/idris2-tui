@@ -172,11 +172,14 @@ Supported Double where
   zero            = 0
 
 ||| Handle a supported keypress.
-handleChar : Supported a => Char -> Numeric a -> IO $ Response (Numeric a) a
+handleChar
+  :  Supported a
+  => Char
+  -> Numeric a
+  -> IO $ Response (HSum events) (Numeric a) a
 handleChar char self = case charToInput {a = a} char of
   Nothing => ignore
   Just i  => update $ insert i self
-
 
 ||| Create a numeric widget from a number value.
 export
@@ -204,22 +207,33 @@ Supported a => View (Numeric a) where
 
 ||| Implement Model for supported number types.
 export
-handle : Supported a => Component.Handler (Numeric a) a Key
-handle (Alpha char) self = handleChar char self
-handle Delete       self = update $ clear self
-handle Left         self = exit
-handle Enter        self = exitWith self.value
-handle Escape       self = exit
-handle _            self = ignore
+onKey : Supported a => Single.Handler (Numeric a) a Key
+onKey (Alpha char) self = handleChar char self
+onKey Delete       self = update $ clear self
+onKey Left         self = exit
+onKey Enter        self = exitWith self.value
+onKey Escape       self = exit
+onKey _            self = ignore
 
 export
-numeric : Supported a => a -> Component a
-numeric value = component (Numeric.fromValue value) handle (.value)
-
-export
-%hint
-editableImpl : Show a => Supported a => Editable a
-editableImpl = MkEditable @{show} {
-  fromValue = numeric,
-  blank     = numeric zero
+numeric
+  :  {0 events : List Type}
+  -> Has Key events
+  => Supported a
+  => a
+  -> Component (HSum events) a
+numeric value = component {
+  state   = Numeric.fromValue value,
+  handler = only onKey,
+  get     = (.value)
 }
+
+export
+implementation
+     {0 events : List Type}
+  -> Has Key events
+  => Supported a
+  => Editable events a
+where
+  fromValue = numeric
+  blank     = numeric zero

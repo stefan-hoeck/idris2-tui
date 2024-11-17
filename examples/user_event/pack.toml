@@ -1,0 +1,11 @@
+[custom.all.custom_event]
+type = "local"
+path = "."
+ipkg = "custom_event.ipkg"
+test = "test/test.ipkg"
+
+[custom.all.tui]
+type = "local"
+path = "../../"
+ipkg = "tui.ipkg"
+

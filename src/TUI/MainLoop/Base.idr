@@ -36,6 +36,7 @@ module TUI.MainLoop.Base
 
 import Data.IORef
 import System
+import System.Concurrency
 import System.File.Process
 import System.File.ReadWrite
 import System.File.Virtual
@@ -60,8 +61,9 @@ namespace Base
   base : Base
   base = ()
 
+
 export covering
-MainLoop Base where
+MainLoop Base (HSum [Key]) where
   runRaw self onKey render init = do
     Right _ <- enableRawMode
             | Left _ => die "Couldn't put terminal in raw mode."
@@ -96,7 +98,7 @@ MainLoop Base where
       case next !getChar decoder of
         Discard => loop decoder state
         Advance decoder Nothing => loop decoder state
-        Advance decoder (Just key) => case !(onKey key state) of
+        Advance decoder (Just key) => case !(onKey (inject key) state) of
           Left  state => loop decoder state
           Right value => pure $ value
         Accept state => assert_total $ idris_crash "ANSI decoder in final state!"

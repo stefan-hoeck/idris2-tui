@@ -46,43 +46,62 @@ import public TUI.Key
 |||
 ||| Note: this type is forward-declared, because mutual blocks do not
 ||| work with records, owing to a bug in Idris.
-public export data Response : Type -> Type -> Type
+public export data Response : Type -> Type -> Type -> Type
 
-||| A function which handles a key event in a component.
+||| A function which handles an event in a component.
 |||
-||| This is distinct from `Event.Handler` in that it returns a
-||| `Response` rather than a `Result`.
+||| There are two variants: `Component.Handler` and `User.Handler`.
 |||
 ||| Note: this type alias is forward-declared, because mutual blocks
 ||| do not workw ith records, owing to a bug in Idris.
-public export 0 Handler : Type -> Type -> Type -> Type
+public export
+0 AbstractHandler
+  :  (stateT       : Type)
+  -> (valueT       : Type)
+  -> (globalEventT : Type)
+  -> (localEventT  : Type)
+  -> Type
+
+||| This type is the top-level event handler within a component.
+|||
+||| This is distinct from `Event.Handler` in that it returns a
+||| `Response` rather than a `Result`. Because it is top-level, the
+||| local and and global event types must agree.
+public export
+0 Handler
+  :  (stateT : Type)
+  -> (valueT : Type)
+  -> (eventT : Type)
+  -> Type
+Handler stateT valueT eventT = AbstractHandler stateT valueT eventT eventT
 
 ||| A reusable user-interface element.
 |||
 ||| Component is closely tied to `Stack` and `Modal`.
 public export covering
-record Component valueT where
+record Component eventT valueT where
   constructor MkComponent
   0 State : Type
   state   : State
-  handler : Component.Handler State valueT Key
+  handler : Component.Handler State valueT eventT
   get     : State -> Maybe valueT
   vimpl   : View State
 
 -- implementations for forward-declared types
 
 public export
-data Response stateT valueT
+data Response eventT stateT valueT
   = Continue (IO stateT)
   | Yield valueT
   | Exit
-  | Push (Component a) (Maybe a -> stateT)
+  | Push (Component eventT a) (Maybe a -> stateT)
 
-Handler stateT valueT eventT = eventT -> stateT -> IO $ Response stateT valueT
+AbstractHandler stateT valueT globalT localT =
+  localT -> stateT -> IO $ Response globalT stateT valueT
 
 ||| Get the value from the component, if it is available.
 export
-(.value) : Component valueT -> Maybe valueT
+(.value) : Component eventT valueT -> Maybe valueT
 (.value) self = self.get self.state
 
 -- Hide this projection function. we use (.state) instead. This
@@ -92,7 +111,7 @@ export
 
 ||| A component wraps a View, so a component is also a view.
 export
-View (Component _) where
+View (Component _ _) where
   size self = size @{self.vimpl} self.state
   paint state window self = paint @{self.vimpl} state window self.state
 
@@ -102,38 +121,38 @@ namespace ComponentDSL
 
   ||| A generic response: update with the given IO action.
   export
-  continue : IO stateT -> IO (Response stateT _)
+  continue : IO stateT -> IO (Response _ stateT _)
   continue state = pure $ Continue $ state
 
   ||| A generic response: update with the given value.
   export
-  update : stateT -> IO (Response stateT _)
+  update : stateT -> IO (Response _ stateT _)
   update state = pure $ Continue $ pure state
 
   ||| A generic response: yield given value to the parent, or exit.
   export
-  yield : valueT -> IO (Response _ valueT)
+  yield : valueT -> IO (Response _ _ valueT)
   yield value = pure $ Yield value
 
   ||| A generic response: exit.
   export
-  exit : IO (Response _ _)
+  exit : IO (Response _ _ _)
   exit = pure $ Exit
 
   ||| A generic response: yield or exit, depending on argument.
   export
-  exitWith : Maybe valueT -> IO (Response _ valueT)
+  exitWith : Maybe valueT -> IO (Response _ _ valueT)
   exitWith Nothing  = exit
   exitWith (Just v) = yield v
 
   ||| A generic response: do nothing.
   export
-  ignore : {auto self : stateT} -> IO (Response stateT _)
+  ignore : {auto self : stateT} -> IO (Response _ stateT _)
   ignore = update self
 
   ||| A generic response: yield if value is `Just`, ignore if nothing
   export
-  exitIf : {auto self : stateT} -> Maybe valueT -> IO (Response stateT valueT)
+  exitIf : {auto self : stateT} -> Maybe valueT -> IO (Response _ stateT valueT)
   exitIf Nothing  = ignore
   exitIf (Just v) = yield v
 
@@ -143,9 +162,10 @@ namespace ComponentDSL
   ||| current component via `merge`.
   export
   push
-    :  (top   : Component topT)
+    :  {0 eventT : Type}
+    -> (top   : Component eventT topT)
     -> (merge : Maybe topT -> stateT)
-    -> IO (Response stateT valueT)
+    -> IO (Response eventT stateT valueT)
   push top merge = pure $ Push top merge
 
   ||| A getter function which always returns Nothing
@@ -162,33 +182,91 @@ namespace ComponentDSL
 ||| it into the component-level handler which is needed by client
 ||| code.
 export
-handle : Component.Handler (Component valueT) valueT Key
-handle key self = case !(self.handler key self.state) of
+handle : Component.Handler (Component eventT valueT) valueT eventT
+handle event self = case !(self.handler event self.state) of
   Continue state => update $ {state := !state} self
   Yield result   => yield result
   Exit           => exit
   Push top merge => push top $ updateInner merge
 where
-  updateInner : (Maybe a -> self.State) -> Maybe a -> Component valueT
+  updateInner : (Maybe a -> self.State) -> Maybe a -> Component eventT valueT
   updateInner merge result = {state := merge result} self
 
-||| Construct a component by supplying both view and handler.
+||| Construct a component.
+|||
+||| This takes a concrete type, view implementation, event handler,
+||| and value accessor, returning an opaque value that reveals only
+||| its value type and event type.
+|||
+||| Component is used extensively in this library to provided
+||| re-usable building blocks for UIs.
 export
 component
-  : View stateT
-  => (state   : stateT)
-  -> (handler : Component.Handler stateT valueT Key)
-  -> (get     : stateT -> Maybe valueT)
-  -> Component valueT
-component init handler get = MkComponent {
+  :  (vimpl    : View stateT)
+  => (state    : stateT)
+  -> (handler  : Component.Handler stateT valueT eventT)
+  -> (get      : stateT -> Maybe valueT)
+  -> Component eventT valueT
+component {vimpl} init handler get = MkComponent {
   State = stateT,
   state = init,
   handler = handler,
   get = get,
-  vimpl = %search
+  vimpl = vimpl
 }
 
-||| Take a `Component a` to a `Component b` via `f`.
+namespace Single
+  ||| An event handler for a union of event types.
+  public export
+  0 Handler
+    :  {0 events : List Type}
+    -> (stateT   : Type)
+    -> (valueT   : Type)
+    -> (eventT   : Type)
+    -> Type
+  Handler stateT valueT eventT = AbstractHandler {
+    stateT       = stateT,
+    valueT       = valueT,
+    globalEventT = HSum events,
+    localEventT  = eventT
+  }
+
+  ||| Compose multiple `Single.Handler`s into a `Component.Handler`.
+  export
+  union
+    :  {0 events : List Type}
+    -> {0 stateT, valueT : Type}
+    -> All (Single.Handler {events} stateT valueT) events
+    -> Component.Handler stateT valueT (HSum events)
+  union handlers event state = go handlers event state
+    where
+      -- subtle stuff here: globalEventT must always be `HSum events`,
+      -- while `localEventT` must be free to vary, as we recurse.
+      go
+        :  All (Single.Handler {events} stateT valueT) a
+        -> AbstractHandler stateT valueT (HSum events) (HSum a)
+      go (h :: _ ) (Here  e) s = h e s
+      go (_ :: hs) (There e) s = go hs e s
+
+  ||| A dummy handler, for use with `union`.
+  export
+  unhandled : (0 eventT : Type) -> Single.Handler stateT valueT eventT
+  unhandled _ event self = ignore
+
+  ||| Lift a handler for a single event into a handler for a union.
+  export
+  only
+    :  {0 events : List Type}
+    -> Has eventT events
+    => Single.Handler {events} stateT valueT eventT
+    -> Component.Handler stateT valueT (HSum events)
+  only wrapped event state = case the (Maybe eventT) $ project' event of
+    Nothing => ignore
+    Just key => wrapped key state
+
+
+
+||| Take a `Component _ a` to a `Component _ b` via `f`.
 |||
 ||| This is useful for specializing library components to
 ||| application-specific types.
@@ -202,14 +280,14 @@ component init handler get = MkComponent {
 |||    inputMM : Length -> Component Length
 |||    inputMM length = (.mm) <$> numeric (length.convertTo MilliMeters)
 export
-Functor Component where
+Functor (Component eventT) where
   map f wrapped = component @{wrapped.vimpl} wrapped.state handle get
     where
       get : wrapped.State -> Maybe b
       get self = f <$> wrapped.get self
 
-      handle : Component.Handler wrapped.State b Key
-      handle key state = case !(wrapped.handler key state) of
+      handle : Component.Handler wrapped.State b eventT
+      handle event state = case !(wrapped.handler event state) of
         Continue state => pure $ Continue state
         Yield result   => yield $ f result
         Exit           => exit
@@ -227,14 +305,14 @@ Functor Component where
 |||
 ||| XXX: does this correspond to a prelude interface?
 export
-mapMaybe : (a -> Maybe b) -> Component a -> Component b
+mapMaybe : (a -> Maybe b) -> Component e a -> Component e b
 mapMaybe f wrapped = component @{wrapped.vimpl} wrapped.state handle get
   where
     get : wrapped.State -> Maybe b
     get self = join $ f <$> wrapped.get self
 
-    handle : Component.Handler wrapped.State b Key
-    handle key state = case !(wrapped.handler key state) of
+    handle : Component.Handler wrapped.State b e
+    handle event state = case !(wrapped.handler event state) of
       Continue state => pure $ Continue state
       Yield result   => exitIf $ f result
       Exit           => exit
@@ -242,5 +320,5 @@ mapMaybe f wrapped = component @{wrapped.vimpl} wrapped.state handle get
 
 ||| Cute alias for `mapMaybe' above.
 export
-(<$?>) : (a -> Maybe b) -> Component a -> Component b
+(<$?>) : (a -> Maybe b) -> Component e a -> Component e b
 (<$?>) f c = mapMaybe f c

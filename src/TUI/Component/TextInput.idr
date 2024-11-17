@@ -104,22 +104,26 @@ View TextInput where
 
 ||| Implement Component for TextInput.
 export
-handle : Component.Handler TextInput String Key
-handle Left      self = update $ goLeft self
-handle Right     self = update $ goRight self
-handle Delete    self = update $ delete self
-handle (Alpha c) self = update $ insert c self
-handle Enter     self = yield $ toString self
-handle Escape    self = exit
-handle _         self = ignore
+onKey : Single.Handler TextInput String Key
+onKey Left      self = update $ goLeft self
+onKey Right     self = update $ goRight self
+onKey Delete    self = update $ delete self
+onKey (Alpha c) self = update $ insert c self
+onKey Enter     self = yield $ toString self
+onKey Escape    self = exit
+onKey _         self = ignore
 
 export
-textInput : String -> Component String
-textInput string = component (fromString string) handle (Just . toString)
+textInput
+  :  {0 events : List Type}
+  -> Has Key events
+  => String
+  -> Component (HSum events) String
+textInput string = component (fromString string) (only onKey) (Just . toString)
 
 ||| Make `String` `Editable` via `TextInput`
 export
-Editable String where
-  fromValue = textInput
-  blank     = textInput ""
+{0 events : List Type} -> Has Key events => Editable events String where
+  fromValue = textInput {events}
+  blank     = textInput {events} ""
 

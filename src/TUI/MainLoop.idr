@@ -59,7 +59,7 @@ import Data.List.Quantifiers
 ||| - Update the application state
 ||| - Render the application state to the screen via the given callback.
 ||| - Clean up the terminal on exit
-interface MainLoop a where
+interface MainLoop a e where
   ||| Initialize the terminal, then enter the main loop.
   |||
   ||| @ mainloop A mainloop instance
@@ -70,7 +70,7 @@ interface MainLoop a where
   ||| This is the lowest-level entry point.
   runRaw
     :  (mainloop : a)
-    -> (onKey    : Event.Handler stateT valueT Key)
+    -> (onEvent  : Event.Handler stateT valueT e)
     -> (render   : stateT  -> Context ())
     -> (init     : stateT)
     -> IO (Maybe valueT)
@@ -81,14 +81,14 @@ interface MainLoop a where
 export covering
 runView
   :  View stateT
-  => MainLoop ml
+  => MainLoop ml e
   => (mainloop : ml)
-  -> (onKey : Event.Handler stateT valueT Key)
+  -> (onEvent : Event.Handler stateT valueT e)
   -> stateT
   -> IO (Maybe valueT)
-runView mainloop onKey init = runRaw {
+runView mainloop onEvent init = runRaw {
   mainloop = mainloop,
-  onKey    = onKey,
+  onEvent  = onEvent,
   render   = View.paint Focused !screen,
   init     = init
 }
@@ -96,9 +96,9 @@ runView mainloop onKey init = runRaw {
 ||| Like runView, but for `Component`.
 export covering
 runComponent
-  :  (vimpl : View (Modal valueT))
-  => MainLoop ml
+  :  (vimpl : View (Modal eventT valueT))
+  => MainLoop ml eventT
   => (mainloop : ml)
-  -> (self : Component valueT)
+  -> (self : Component eventT valueT)
   -> IO (Maybe valueT)
 runComponent mainloop self = runView @{vimpl} mainloop handle (root self)

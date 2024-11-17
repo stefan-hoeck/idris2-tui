@@ -51,19 +51,20 @@ import TUI.Util
 ||| This component is used to build forms and other multi-valued
 ||| components.
 public export
-record FocusRing (tys : Vect k Type) where
+record FocusRing {0 events : List Type} (tys : Vect k Type) where
   constructor MkFocusRing
-  items     : All Component tys
+  items     : All (Component (HSum events)) tys
   selection : Fin k
 
 ||| Get the type of the selection.
 export
 0 (.Selected)
-  :  {k    : Nat}
+  :  {0 events : List Type}
+  -> {k    : Nat}
   -> {tys  : Vect k Type}
-  -> (self : FocusRing tys)
+  -> (self : FocusRing {events} tys)
   -> Type
-(.Selected) {tys} self = Component (index self.selection tys)
+(.Selected) {tys} self = Component (HSum events) (index self.selection tys)
 
 ||| Get the selected value.
 export
@@ -77,29 +78,32 @@ export
 ||| Select the next item.
 export
 prev
-  :  {k    : Nat}
+  :  {0 events : List Type}
+  -> {k    : Nat}
   -> {tys  : Vect k Type}
-  -> (self : FocusRing tys)
-  -> FocusRing tys
+  -> (self : FocusRing {events} tys)
+  -> FocusRing {events} tys
 prev = {selection $= predS}
 
 ||| Select the previous item.
 export
 next
-  :  {k    : Nat}
+  :  {0 events : List Type}
+  -> {k    : Nat}
   -> {tys  : Vect k Type}
-  -> (self : FocusRing tys)
-  -> FocusRing tys
+  -> (self : FocusRing {events} tys)
+  -> FocusRing {events} tys
 next = {selection $= finS}
 
 ||| Select the given index.
 export
 choose
-  :  {k      : Nat}
+  :  {0 events : List Type}
+  -> {k      : Nat}
   -> {tys    : Vect k Type}
   -> (choice : Fin k)
-  -> (self   : FocusRing tys)
-  -> FocusRing tys
+  -> (self   : FocusRing {events} tys)
+  -> FocusRing {events} tys
 choose c = {selection := c}
 
 ||| Get the current values for each component.
@@ -126,19 +130,20 @@ export
 ||| If the selected component exits, then the focus ring exits.
 export
 handleSelected
-  :  {k   : Nat}
+  :  {0 events : List Type}
+  -> {k   : Nat}
   -> {tys : Vect k Type}
-  -> Component.Handler (FocusRing tys) (All Maybe tys) Key
-handleSelected key self = case !(handle key self.selected) of
+  -> Component.Handler (FocusRing {events} tys) (All Maybe tys) (HSum events)
+handleSelected event self = case !(handle event self.selected) of
   Continue x => update $ {items := updateSelected !x} self
   Yield v    => yield self.values
   Exit       => exit
   Push x f   => push x $ onMerge f
 where
-  updateSelected : self.Selected -> All Component tys
+  updateSelected : self.Selected -> All (Component (HSum events)) tys
   updateSelected item = replaceAt self.selection item self.items
 
-  onMerge : (Maybe a -> self.Selected) -> Maybe a -> FocusRing tys
+  onMerge : (Maybe a -> self.Selected) -> Maybe a -> FocusRing {events} tys
   onMerge merge result = {items := updateSelected (merge result)} self
 
 
@@ -154,7 +159,7 @@ namespace Views
     paint state window self = do
       ignore $ recurse 0 window self.items
     where
-      recurse : Fin (S k) -> Rect -> All Component a -> Context Rect
+      recurse : Fin (S k) -> Rect -> Data.Vect.Quantifiers.All.All (Component e) a -> Context Rect
       recurse i window []        = pure $ window
       recurse i window (x :: xs) = recurse (finS i) !(packTop focus window x) xs
       where
@@ -173,7 +178,7 @@ namespace Views
     paint state window self = do
       ignore $ recurse 0 window self.items
     where
-      recurse : Fin (S k) -> Rect -> All Component a -> Context Rect
+      recurse : Fin (S k) -> Rect -> Data.Vect.Quantifiers.All.All (Component e) a -> Context Rect
       recurse i window []        = pure $ window
       recurse i window (x :: xs) = recurse (finS i) !(packLeft focus window x) xs
       where
@@ -185,11 +190,12 @@ namespace Views
 ||| Construct a new concrete FocusRing
 export
 new
-  :  {k   : Nat}
+  :  {0 events : List Type}
+  -> {k   : Nat}
   -> {tys : Vect k Type}
-  -> All Component tys
+  -> All (Component (HSum events)) tys
   -> Fin k
-  -> FocusRing tys
+  -> FocusRing {events} tys
 new components choice = MkFocusRing components choice
 
 ||| Construct a generic FocusRing with a custom key handler.
@@ -211,13 +217,14 @@ new components choice = MkFocusRing components choice
 ||| @vimpl     : View (FocusRing tys))
 export
 focusRing
-  :  {k         : Nat}
+  :  {0 events : List Type}
+  -> {k         : Nat}
   -> {tys       : Vect k Type}
-  -> (vimpl     : View (FocusRing tys))
-  => (items     : All Component tys)
+  -> (vimpl     : View (FocusRing {events} tys))
+  => (items     : All (Component (HSum events)) tys)
   -> (selection : Fin k)
-  -> (onKey     : Component.Handler (FocusRing tys) (All Maybe tys) Key)
-  -> Component (All Maybe tys)
+  -> (onKey     : Component.Handler (FocusRing {events} tys) (All Maybe tys) (HSum events))
+  -> Component (HSum events) (All Maybe tys)
 focusRing {vimpl} items selection onKey = component @{vimpl} {
   state   = new items selection,
   handler = onKey,
@@ -242,12 +249,13 @@ focusRing {vimpl} items selection onKey = component @{vimpl} {
 ||| @onKey     (Optional: a custom key handler).
 export
 vertical
-  :  {k         : Nat}
+  :  {0 events  : List Type}
+  -> {k         : Nat}
   -> {tys       : Vect (S k) Type}
-  -> (items     : All Component tys)
+  -> (items     : All (Component (HSum events)) tys)
   -> (selection : Fin (S k))
-  -> (onKey     : Component.Handler (FocusRing tys) (All Maybe tys) Key)
-  -> Component (All Maybe tys)
+  -> (onKey     : Component.Handler (FocusRing {events} tys) (All Maybe tys) (HSum events))
+  -> Component (HSum events) (All Maybe tys)
 vertical = focusRing @{vertical}
 
 ||| Construct a FocusRing component that renders horizontally.
@@ -268,10 +276,11 @@ vertical = focusRing @{vertical}
 ||| @onKey     (Optional: a custom key handler).
 export
 horizontal
-  :  {k         : Nat}
+  :  {0 events  : List Type}
+  -> {k         : Nat}
   -> {tys       : Vect (S k) Type}
-  -> (items     : All Component tys)
+  -> (items     : All (Component (HSum events)) tys)
   -> (selection : Fin (S k))
-  -> (onKey     : Component.Handler (FocusRing tys) (All Maybe tys) Key)
-  -> Component (All Maybe tys)
+  -> (onKey     : Component.Handler (FocusRing {events} tys) (All Maybe tys) (HSum events))
+  -> Component (HSum events) (All Maybe tys)
 horizontal = focusRing @{horizontal}

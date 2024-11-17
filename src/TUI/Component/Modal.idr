@@ -55,10 +55,10 @@ import Data.List.Quantifiers
 ||| I've tried other variatons on this idea, and this seems to be the
 ||| best.
 public export
-data Stack : (top : Type) -> (root : Type) -> Type where
-  Nil  : Stack root root
+data Stack : Type -> (top : Type) -> (root : Type) -> Type where
+  Nil  : Stack e root root
   ||| @merge Function to merge top of the stack with the element beneath.
-  (::) : (merge : Maybe top -> Component a) -> Stack a root -> Stack top root
+  (::) : (merge : Maybe top -> Component e a) -> Stack e a root -> Stack e top root
 
 ||| A context for modal interaction.
 |||
@@ -75,10 +75,10 @@ data Stack : (top : Type) -> (root : Type) -> Type where
 ||| Note: this type is needed to hide the `top` index on the stack,
 ||| otherwise we could just use `Stack` itself as a component.
 public export
-record Modal rootT where
+record Modal eventT rootT where
   constructor M
-  component : Component topT
-  stack : Stack topT rootT
+  component : Component eventT topT
+  stack : Stack eventT topT rootT
 
 -- we can use `(.topT)` instead, which reads better anyway. `topT`
 -- just ends up shadowing useful type arguments. I wish for some
@@ -93,18 +93,18 @@ record Modal rootT where
 ||| @self   The current modal context.
 ||| @result The value to merge or yield.
 pop
-  :  (self : Modal rootT)
+  :  (self : Modal eventT rootT)
   -> (result : Maybe self.topT)
-  -> Either (Modal rootT) (Maybe rootT)
+  -> Either (Modal eventT rootT) (Maybe rootT)
 pop (M top [])               result = Right result
 pop (M top (merge :: tail))  result = Left $ M (merge result) tail
 
 ||| Push a component into the Modal context, with the merge function.
 push
-  :  Component topT
-  -> (self : Modal rootT)
-  -> (Maybe topT -> Component self.topT)
-  -> Modal rootT
+  :  Component eventT topT
+  -> (self : Modal eventT rootT)
+  -> (Maybe topT -> Component eventT self.topT)
+  -> Modal eventT rootT
 push top self merge = M top (merge :: self.stack)
 
 ||| Construct a new modal context with the given component.
@@ -112,7 +112,7 @@ push top self merge = M top (merge :: self.stack)
 ||| You shouldn't need to call this. It is used by `runComponent` in
 ||| the `MainLoop` to wrap the root component.
 export
-root : Component rootT -> Modal rootT
+root : Component eventT rootT -> Modal eventT rootT
 root component = M component []
 
 ||| This is the top-level event handler for a modal context.
@@ -120,14 +120,14 @@ root component = M component []
 ||| You should not normally need to call this: it is called by
 ||| `runComponent` in MainLoop.
 export
-handle : Event.Handler (Modal rootT) rootT Key
+handle : Event.Handler (Modal eventT rootT) rootT eventT
 handle event self = case !(handle event self.component) of
   Continue state => update $ {component := !state} self
   Yield result   => doPop (Just result)
   Exit           => doPop Nothing
   Push top merge => update $ push top self merge
 where
-  doPop : (Maybe self.topT) -> Result (Modal rootT) rootT
+  doPop : (Maybe self.topT) -> Result (Modal eventT rootT) rootT
   doPop result = case pop self result of
     Left  state  => update state
     Right result => exitWith result
@@ -136,7 +136,7 @@ where
 |||
 ||| It paints only the top-most component into the given window.
 export
-[topmost] View (Modal t) where
+[topmost] View (Modal eventT t) where
   size self = size self.component
   paint state window self = paint state window self.component
 
@@ -148,10 +148,10 @@ export
 ||| To use this, pass `@{inset}` in your call to `runComponent`,
 ||| `runView`, `paint`, `component`, etc.
 export
-[inset] View (Modal t) where
+[inset] View (Modal eventT t) where
   size self = union (size self.component) (sizeStack self.stack)
     where
-      sizeStack : Stack _ _ -> Area
+      sizeStack : Stack _ _ _ -> Area
       sizeStack [] = empty
       sizeStack (merge :: xs) = union (size $ merge Nothing) (sizeStack xs)
 
@@ -163,7 +163,7 @@ export
       paint state window component
       border (grow window)
   where
-    paintStack : Rect -> Stack _ _ -> Context Rect
+    paintStack : Rect -> Stack _ _ _ -> Context Rect
     paintStack window [] = pure window
     paintStack window [merge] = do
       paint Disabled window (merge Nothing)
@@ -184,10 +184,10 @@ export
 ||| To use this, pass `@{inset}` in your call to `runComponent`,
 ||| `runView`, `paint`, `component`, etc.
 export
-[centered] View (Modal t) where
+[centered] View (Modal eventT t) where
   size self = union (size self.component) (sizeStack self.stack)
     where
-      sizeStack : Stack _ _ -> Area
+      sizeStack : Stack _ _ _ -> Area
       sizeStack [] = empty
       sizeStack (merge :: xs) = union (size $ merge Nothing) (sizeStack xs)
 
@@ -200,7 +200,7 @@ export
       paint state modal component
       border (grow modal)
   where
-    paintStack : Rect -> Stack _ _ -> Context ()
+    paintStack : Rect -> Stack _ _ _ -> Context ()
     paintStack window [] = pure ()
     paintStack window [merge] = do
       paint Disabled window (merge Nothing)
@@ -217,10 +217,10 @@ export
 ||| To use this, pass `@{fromTop}` in your call to `runComponent`,
 ||| `runView`, `paint`, `component`, etc.
 export
-[fromTop] View (Modal t) where
+[fromTop] View (Modal eventT t) where
   size self = union (size self.component) (sizeStack self.stack)
     where
-      sizeStack : Stack _ _ -> Area
+      sizeStack : Stack _ _ _ -> Area
       sizeStack [] = empty
       sizeStack (merge :: xs) = hunion (size $ merge Nothing) (sizeStack xs)
 
@@ -231,7 +231,7 @@ export
       window <- packTop state window HRule
       paint state window component
   where
-    paintStack : Rect -> Stack _ _ -> Context Rect
+    paintStack : Rect -> Stack _ _ _ -> Context Rect
     paintStack window [] = pure window
     paintStack window [merge] = do
       packTop Disabled window (merge Nothing)
@@ -245,10 +245,10 @@ export
 ||| To use this, pass `@{fromLeft}` in your call to `runComponent`,
 ||| `runView`, `paint`, `component`, etc.
 export
-[fromLeft] View (Modal t) where
+[fromLeft] View (Modal eventT t) where
   size self = union (size self.component) (sizeStack self.stack)
     where
-      sizeStack : Stack _ _ -> Area
+      sizeStack : Stack _ _ _ -> Area
       sizeStack [] = empty
       sizeStack (merge :: xs) = vunion (size $ merge Nothing) (sizeStack xs)
 
@@ -259,7 +259,7 @@ export
       window <- packLeft state window VRule
       ignore $ packLeft state window component
   where
-    paintStack : Rect -> Stack _ _ -> Context Rect
+    paintStack : Rect -> Stack _ _ _ -> Context Rect
     paintStack window [] = pure window
     paintStack window [merge] = do
       packLeft Disabled window (merge Nothing)
@@ -270,5 +270,5 @@ export
 
 ||| The default view should be the inset view.
 export %hint
-defaultView : View (Modal t)
+defaultView : View (Modal eventT t)
 defaultView = inset

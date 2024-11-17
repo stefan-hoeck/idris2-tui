@@ -81,14 +81,14 @@ View Item where
 |||
 ||| The path is used as the list header, so we know which file we're
 ||| editing.
-todoList : String -> List Item -> Component (List Item)
+todoList : String -> List Item -> Component Key (List Item)
 todoList path items = vlist {
   header = path,
   items = items,
   onKey = onKey
 } where
   ||| Update the selected list item description via a modal TextInput.
-  editSelected : VList Item -> IO $ Response (VList Item) (List Item)
+  editSelected : VList Item -> IO $ Response Key (VList Item) (List Item)
   editSelected self = case self.selected of
     Nothing => ignore
     Just item => push (textInput item.description) (onMerge item)
