@@ -265,7 +265,6 @@ namespace Single
     Just key => wrapped key state
 
 
-
 ||| Take a `Component _ a` to a `Component _ b` via `f`.
 |||
 ||| This is useful for specializing library components to

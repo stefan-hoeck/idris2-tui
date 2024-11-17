@@ -63,3 +63,8 @@ export covering
 MainLoop Default (HSum [Key]) where
   runRaw (Left b) = runRaw b
   runRaw (Right is) = runRaw is
+
+export covering
+MainLoop Default Key where
+  runRaw (Left b) = runRaw b
+  runRaw (Right is) = runRaw is

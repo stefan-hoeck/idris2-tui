@@ -105,3 +105,11 @@ MainLoop Base (HSum [Key]) where
         Reject str => do
           ignore $ fPutStrLn stderr "ANSI Decode Error: \{str}"
           loop (reset decoder) state
+
+||| Special case for a singleton set of events
+export covering
+MainLoop Base Key where
+  runRaw self handler render init = runRaw self wrapped render init
+    where
+      wrapped : HSum [Key] -> stateT -> Result stateT valueT
+      wrapped key state = handler (project1 key) state
