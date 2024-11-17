@@ -79,15 +79,14 @@ changes may be backported to point releases.
 
 - v0.1
   - continue developing ampii closely with idris-tui.
-  - non-blocking mainloop (for games).
-  - set up CI github actions.
   - pipeline to generate animated gifs from included examples.
+  - write up tutorial.
 - v0.2
+  - non-blocking mainloop (for games).
   - full support for all keys (breaking changes to Key type).
   - scrub API for bad names
 	- favor `(.methods)` when appropriate (`window.splitLeft 1` over
       `splitLeft window 1`.
-  - write up tutorial.
 - v0.3
   - feature detection / progressive enhancement.
   - support for gettext or something equivalent.
