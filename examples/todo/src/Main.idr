@@ -81,14 +81,14 @@ View Item where
 |||
 ||| The path is used as the list header, so we know which file we're
 ||| editing.
-todoList : String -> List Item -> Component Key (List Item)
+todoList : String -> List Item -> Component (HSum [Key]) (List Item)
 todoList path items = vlist {
   header = path,
   items = items,
-  onKey = onKey
+  onKey = only onKey
 } where
   ||| Update the selected list item description via a modal TextInput.
-  editSelected : VList Item -> IO $ Response Key (VList Item) (List Item)
+  editSelected : VList Item -> IO $ Response (HSum [Key]) (VList Item) (List Item)
   editSelected self = case self.selected of
     Nothing => ignore
     Just item => push (textInput item.description) (onMerge item)
@@ -105,7 +105,7 @@ todoList path items = vlist {
   ||| toggles completion status. Arrow keys are used for
   ||| navigation. `q` will quit-and-save, while escape will quit
   ||| without saving. Other keys are ignored.
-  onKey : Component.Handler (VList Item) (List Item) Key
+  onKey : Single.Handler {events = [Key]} (VList Item) (List Item) Key
   onKey (Alpha '+') self = update $ insert (I "New Item" False) self
   onKey (Alpha 'q') self = yield  $ toList self
   onKey (Alpha ' ') self = update $ update toggle self
