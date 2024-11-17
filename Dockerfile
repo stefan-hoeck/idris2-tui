@@ -1,6 +1,6 @@
 # cache dependencies to avoid needing to rebuild.
 # I may live to regret this.
-FROM ghcr.io/stefan-hoeck/idris2-pack:latest
+FROM ghcr.io/stefan-hoeck/idris2-pack:nightly-241116
 WORKDIR /root/
 COPY tui.ipkg .
 COPY pack.toml .
