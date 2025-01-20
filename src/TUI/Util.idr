@@ -47,7 +47,6 @@ import Data.String
 import Data.SortedMap
 import Data.Vect
 import Data.Vect.Quantifiers
-import Language.JSON
 
 
 %default total
