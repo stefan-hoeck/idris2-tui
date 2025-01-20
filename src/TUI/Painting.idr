@@ -30,7 +30,7 @@
 ||| Immediate-mode TUI graphics.
 |||
 ||| These routines are slightly higher-level than that provided by
-||| `Control.ANSI`. In particular, we use types from `TUI.Geometry`.
+||| `Text.ANSI`. In particular, we use types from `TUI.Geometry`.
 |||
 ||| These routines operate on an opaque `Context` which theoretically
 ||| tracks the draw state, allowing for scope-based mangement of draw
@@ -57,7 +57,7 @@
 module TUI.Painting
 
 
-import public Control.ANSI
+import public Text.ANSI
 import Data.String
 import System
 import System.File

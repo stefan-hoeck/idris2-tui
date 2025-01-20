@@ -5,7 +5,7 @@ maintainers = "emdash"
 license = "BSD-3"
 brief = "Easy terminal UI for Idris2"
 
-depends = contrib
+depends = ansi
         , json
         , elab-util
         , quantifiers-extra
