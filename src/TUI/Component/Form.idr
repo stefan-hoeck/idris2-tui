@@ -106,8 +106,8 @@ paintField split state window self = do
 handleField
   :  {0 events : List Type}
   -> Component.Handler (Field {events} valueT) valueT (HSum events)
-handleField event self = case !(handle event self.value) of
-  Continue state => update $ {value := !state} self
+handleField event self = case handle event self.value of
+  Continue state => update $ {value := state} self
   Yield result   => yield result
   Exit           => exit
   Push top merge => push top (onMerge merge)
@@ -239,15 +239,15 @@ where
   onMerge : (Maybe a -> FocusRing {events} tys) -> Maybe a -> Form {events} tys
   onMerge merge result = {fields := merge result} self
 
-  handleEdit : IO $ Response (HSum events) (Form {events} tys) (HVect tys)
-  handleEdit = case !(handleSelected {events} (inject key) self.fields) of
-    Continue state => update $ {fields := !state} self
+  handleEdit : Response (HSum events) (Form {events} tys) (HVect tys)
+  handleEdit = case handleSelected {events} (inject key) self.fields of
+    Continue state => update $ {fields := state} self
     Yield _        => update $ next self
     Exit           => ignore
     Push top merge => push top $ onMerge merge
 
   ||| validate form fields
-  onSubmit : IO $ Response (HSum events) (Form {events} tys) (HVect tys)
+  onSubmit : Response (HSum events) (Form {events} tys) (HVect tys)
   onSubmit = case allIsJust self.fields.values of
     Nothing     => ignore
     Just values => yield values

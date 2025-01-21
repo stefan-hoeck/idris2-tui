@@ -121,8 +121,8 @@ root component = M component []
 ||| `runComponent` in MainLoop.
 export
 handle : Event.Handler (Modal eventT rootT) rootT eventT
-handle event self = case !(handle event self.component) of
-  Continue state => update $ {component := !state} self
+handle event self = case handle event self.component of
+  Continue state => update $ {component := state} self
   Yield result   => doPop (Just result)
   Exit           => doPop Nothing
   Push top merge => update $ push top self merge

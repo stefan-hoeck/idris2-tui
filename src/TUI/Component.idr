@@ -91,13 +91,13 @@ record Component eventT valueT where
 
 public export
 data Response eventT stateT valueT
-  = Continue (IO stateT)
+  = Continue stateT
   | Yield valueT
   | Exit
   | Push (Component eventT a) (Maybe a -> stateT)
 
 AbstractHandler stateT valueT globalT localT =
-  localT -> stateT -> IO $ Response globalT stateT valueT
+  localT -> stateT -> Response globalT stateT valueT
 
 ||| Get the value from the component, if it is available.
 export
@@ -121,38 +121,38 @@ namespace ComponentDSL
 
   ||| A generic response: update with the given IO action.
   export
-  continue : IO stateT -> IO (Response _ stateT _)
-  continue state = pure $ Continue $ state
+  continue : stateT -> Response _ stateT _
+  continue state = Continue $ state
 
   ||| A generic response: update with the given value.
   export
-  update : stateT -> IO (Response _ stateT _)
-  update state = pure $ Continue $ pure state
+  update : stateT -> Response _ stateT _
+  update state = Continue $ state
 
   ||| A generic response: yield given value to the parent, or exit.
   export
-  yield : valueT -> IO (Response _ _ valueT)
-  yield value = pure $ Yield value
+  yield : valueT -> Response _ _ valueT
+  yield value = Yield value
 
   ||| A generic response: exit.
   export
-  exit : IO (Response _ _ _)
-  exit = pure $ Exit
+  exit : Response _ _ _
+  exit = Exit
 
   ||| A generic response: yield or exit, depending on argument.
   export
-  exitWith : Maybe valueT -> IO (Response _ _ valueT)
+  exitWith : Maybe valueT -> Response _ _ valueT
   exitWith Nothing  = exit
   exitWith (Just v) = yield v
 
   ||| A generic response: do nothing.
   export
-  ignore : {auto self : stateT} -> IO (Response _ stateT _)
+  ignore : {auto self : stateT} -> Response _ stateT _
   ignore = update self
 
   ||| A generic response: yield if value is `Just`, ignore if nothing
   export
-  exitIf : {auto self : stateT} -> Maybe valueT -> IO (Response _ stateT valueT)
+  exitIf : {auto self : stateT} -> Maybe valueT -> Response _ stateT valueT
   exitIf Nothing  = ignore
   exitIf (Just v) = yield v
 
@@ -165,8 +165,8 @@ namespace ComponentDSL
     :  {0 eventT : Type}
     -> (top   : Component eventT topT)
     -> (merge : Maybe topT -> stateT)
-    -> IO (Response eventT stateT valueT)
-  push top merge = pure $ Push top merge
+    -> Response eventT stateT valueT
+  push top merge = Push top merge
 
   ||| A getter function which always returns Nothing
   |||
@@ -183,8 +183,8 @@ namespace ComponentDSL
 ||| code.
 export
 handle : Component.Handler (Component eventT valueT) valueT eventT
-handle event self = case !(self.handler event self.state) of
-  Continue state => update $ {state := !state} self
+handle event self = case self.handler event self.state of
+  Continue state => update $ {state := state} self
   Yield result   => yield result
   Exit           => exit
   Push top merge => push top $ updateInner merge
@@ -286,8 +286,8 @@ Functor (Component eventT) where
       get self = f <$> wrapped.get self
 
       handle : Component.Handler wrapped.State b eventT
-      handle event state = case !(wrapped.handler event state) of
-        Continue state => pure $ Continue state
+      handle event state = case wrapped.handler event state of
+        Continue state => Continue state
         Yield result   => yield $ f result
         Exit           => exit
         Push top merge => push top merge
@@ -311,8 +311,8 @@ mapMaybe f wrapped = component @{wrapped.vimpl} wrapped.state handle get
     get self = join $ f <$> wrapped.get self
 
     handle : Component.Handler wrapped.State b e
-    handle event state = case !(wrapped.handler event state) of
-      Continue state => pure $ Continue state
+    handle event state = case wrapped.handler event state of
+      Continue state => Continue state
       Yield result   => exitIf $ f result
       Exit           => exit
       Push top merge => push top merge
