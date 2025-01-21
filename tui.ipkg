@@ -9,6 +9,7 @@ depends = ansi
         , json
         , elab-util
         , quantifiers-extra
+        , posix
 
 modules = TUI
         , TUI

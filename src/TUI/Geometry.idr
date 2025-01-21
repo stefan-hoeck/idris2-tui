@@ -371,13 +371,13 @@ r80x24 = MkRect origin (MkArea 80 24)
 |||
 ||| XXX: handle SIGWINCH
 export
-screen : IO Rect
+screen : HasIO io => io Rect
 screen = do
   width  <- parseEnv "COLUMNS" 80 parsePositive
   height <- parseEnv  "LINES"  24 parsePositive
   pure $ MkRect origin $ MkArea (width `minus` 1) (height `minus` 1)
 where
-  parseEnv : String -> a -> (String -> Maybe a) -> IO a
+  parseEnv : String -> a -> (String -> Maybe a) -> io a
   parseEnv key def parse = case !(getEnv key) of
     Just value => pure $ fromMaybe def $ parse value
     Nothing    => pure def

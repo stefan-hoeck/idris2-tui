@@ -59,9 +59,7 @@ module TUI.Painting
 
 import public Text.ANSI
 import Data.String
-import System
-import System.File
-import System.File.Virtual
+import System.Posix.File
 import public TUI.Geometry
 
 
@@ -117,38 +115,40 @@ putChar c = putStr $ singleton c
 ||| Erase the the masked area of the screen.
 |||
 ||| This naive algorithm should be optimized later if need be.
-clearMasked : Area -> ClipMask -> IO ()
-clearMasked _      []   = pure ()
-clearMasked window mask = do
-  -- reset all character attributes.
-  putStr $ escapeSGR [Reset]
-  -- write a blank character to any cell that is masked off.  we have
-  -- to do this without the benefit of any abstractions defined here,
-  -- since this runs in IO
-  --
-  -- this could be optimized to look for runs of blank space, and
-  -- issue screen clear operations instead, but we'll wait until this
-  -- is proven to be a bottleneck.
-  for_ [1 .. window.width] $ \i => do
-    for_ [1 .. window.height] $ \j => do
-      let pos = MkPos i j
+clearMasked : Area -> ClipMask -> String
+clearMasked _      []   = ""
+clearMasked window mask =
+  fastConcat $
+    escapeSGR [Reset] :: -- reset all character attributes.
+    blanks ++
+    [eraseScreen End]
+    -- ^ in case our window is smaller than the true screen size
+    -- (e.g. because we don't handle SIGWINCH), clear any contents from
+    -- the clip region that happen to lie outside the screen bounds.
+
+  where
+    -- write a blank character to any cell that is masked off.  we have
+    -- to do this without the benefit of any abstractions defined here,
+    -- since this runs in IO
+    --
+    -- this could be optimized to look for runs of blank space, and
+    -- issue screen clear operations instead, but we'll wait until this
+    -- is proven to be a bottleneck.
+    blanks : List String
+    blanks = do
+      i <- [1 .. window.width]
+      j <- [1 .. window.height]
       case mask.contains (MkPos i j) of
-        True  => pure ()
-        False => do
-          putStr $ cursorMove j i
-          putChar ' '
-  -- in case our window is smaller than the true screen size
-  -- (e.g. because we don't handle SIGWINCH), clear any contents from
-  -- the clip region that happen to lie outside the screen bounds.
-  putStr $ eraseScreen End
+        True  => []
+        False => [cursorMove j i, " "]
 
 ||| Paint the context to stdout.
 export
-present : Area -> Context a -> IO a
+present : HasIO io => Area -> Context a -> io a
 present screen (C masked mask content value) = do
-  putStr $ fastConcat $ toList masked
-  clearMasked screen mask
-  putStr $ fastConcat $ toList content
+  stdout $ fastConcat $ toList masked
+  stdout $ clearMasked screen mask
+  stdout $ fastConcat $ toList content
   pure value
 
 ||| This is the internal clipping function which merely shifts the
@@ -352,38 +352,38 @@ namespace Arrow
 namespace VTerm
 
   ||| Clear the contents of the screen.
-  export
-  clearScreen : IO ()
-  clearScreen = putStr $ eraseScreen All
+  export %inline
+  clearScreen : HasIO io => io ()
+  clearScreen = stdout $ eraseScreen All
 
   ||| Switch into or out of the alternate screen buffer
-  export
-  altScreen : Bool -> IO ()
-  altScreen True  = putStr $ "\ESC[?1049h"
-  altScreen False = putStr $ "\ESC[?1049l"
+  export %inline
+  altScreen : HasIO io => Bool -> io ()
+  altScreen True  = stdout $ "\ESC[?1049h"
+  altScreen False = stdout $ "\ESC[?1049l"
 
   ||| Show or hide cursor
-  export
-  cursor : Bool -> IO ()
-  cursor True  = putStr "\ESC[?25h"
-  cursor False = putStr "\ESC[?25l"
+  export %inline
+  cursor : HasIO io => Bool -> io ()
+  cursor True  = stdout "\ESC[?25h"
+  cursor False = stdout "\ESC[?25l"
 
   ||| Tell the terminal to save its state.
-  export
-  saveCursor : IO ()
-  saveCursor = putStr "\ESC7"
+  export %inline
+  saveCursor : HasIO io => io ()
+  saveCursor = stdout "\ESC7"
 
   ||| Tell the terminal to restore its state.
-  export
-  restoreCursor : IO ()
-  restoreCursor = putStr "\ESC8"
+  export %inline
+  restoreCursor : HasIO io => io ()
+  restoreCursor = stdout "\ESC8"
 
   ||| synchronous update Supported by iTerm2 and other fancy terminals
-  export
-  beginSyncUpdate : IO ()
-  beginSyncUpdate = putStr "\ESC[?2026h"
+  export %inline
+  beginSyncUpdate : HasIO io => io ()
+  beginSyncUpdate = stdout "\ESC[?2026h"
 
   ||| synchronous update supported by iTerm2 and other fancy terminals
-  export
-  endSyncUpdate : IO ()
-  endSyncUpdate = putStr "\ESC[?2026l"
+  export %inline
+  endSyncUpdate : HasIO io => io ()
+  endSyncUpdate = stdout "\ESC[?2026l"
