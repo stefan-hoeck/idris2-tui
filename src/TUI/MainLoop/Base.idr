@@ -36,10 +36,9 @@ module TUI.MainLoop.Base
 
 import Data.IORef
 import System
+import System.File
 import System.Concurrency
-import System.File.Process
-import System.File.ReadWrite
-import System.File.Virtual
+import System.Posix.File
 import TUI.DFA
 import TUI.Event
 import TUI.Key
@@ -94,7 +93,6 @@ MainLoop Base (HSum [Key]) where
         moveTo origin
         render state
       endSyncUpdate
-      fflush stdout
       case next !getChar decoder of
         Discard => loop decoder state
         Advance decoder Nothing => loop decoder state
@@ -103,7 +101,7 @@ MainLoop Base (HSum [Key]) where
           Right value => pure $ value
         Accept state => assert_total $ idris_crash "ANSI decoder in final state!"
         Reject str => do
-          ignore $ fPutStrLn stderr "ANSI Decode Error: \{str}"
+          stderrLn "ANSI Decode Error: \{str}"
           loop (reset decoder) state
 
 ||| Special case for a singleton set of events

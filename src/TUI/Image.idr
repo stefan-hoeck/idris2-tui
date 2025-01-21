@@ -38,7 +38,6 @@ module TUI.Image
 
 
 import System
-import System.File
 import TUI.Geometry
 import TUI.Painting
 import TUI.View

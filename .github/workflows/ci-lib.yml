@@ -29,12 +29,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Build lib
-        run: pack build tui
+        run: pack --no-prompt build tui
       - name: Build gallery
-        run: pack build gallery
+        run: pack --no-prompt build gallery
       - name: Build scrollclip
-        run: pack build scrollclip
+        run: pack --no-prompt build scrollclip
       - name: Build todo
-        run: pack build todo
+        run: pack --no-prompt build todo
       - name: Build user_event
-        run: pack build user_event
+        run: pack --no-prompt build user_event
