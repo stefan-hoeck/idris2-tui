@@ -42,6 +42,7 @@ import Data.IORef
 import Data.List
 import Data.List.Quantifiers
 import Data.List.Quantifiers.Extra
+import JSON
 import System.File.Process
 import System.File.ReadWrite
 import System.File.Virtual
